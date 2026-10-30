@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import worker from '../dist/server/index.js';
 const call=(path,options={})=>worker.fetch(new Request('https://finn.test'+path,options),{},{});
+test('public diligence context remains outside the company research corpus',async()=>{
+ const d=await(await call('/api/diligence')).json();assert.equal(d.lenses.length,5);assert.match(d.method,/not its internal/);
+ const r=await(await call('/api/review',{method:'POST',body:JSON.stringify({ticker:'INFY',thesis:'Operating cash generation supports profit quality',disconfirm:'Weak cash conversion would challenge this belief',lens:'cash'})})).json();assert.equal(r.mode,'evidence');assert.equal(r.reviewContext.ticker,'INFY');assert.ok(r.evidence.every(e=>e.document.ticker==='INFY'));
+ const bad=await call('/api/review',{method:'POST',body:JSON.stringify({ticker:'INFY',thesis:'short',disconfirm:'short',lens:'made-up'})});assert.equal(bad.status,400);
+});
 test('app shell, assets and library API are served by the production bundle',async()=>{
  const home=await call('/');assert.equal(home.status,200);assert.match(await home.text(),/FINN/);
  const js=await call('/app.js');assert.equal(js.headers.get('content-type'),'application/javascript; charset=utf-8');assert.match(await js.text(),/research-form/);

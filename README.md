@@ -2,6 +2,8 @@
 
 A mobile-first investor workspace built around a briefing, a research notebook, and the original evidence. Warm paper, restrained green, editorial typography, financial tables and compact source cards establish a coherent visual direction.
 
+The public-company research in [docs/enam-research.md](docs/enam-research.md) informed two additions: a falsifiable company thesis file and a small multi-account holdings snapshot workflow. These are product interpretations of public information, not claimed copies of ENAM's internal systems. MProfit is an adjacent ENAM-backed investment, not an integration partner of this prototype.
+
 ## Run locally
 
 Requires Node.js 22.10+ (tested with Node 24) and npm.
@@ -92,6 +94,8 @@ Run `python scripts/ingest_sources.py --help` for supported refresh options. Raw
 4. **Exchange filings:** attempts an on-demand NSE announcement request. Access failures are shown honestly; no exchange restrictions are bypassed and prices are not invented.
 5. **Discover / import:** links to reports and transcripts discovered from the selected company's Screener page. Download an original and import its PDF to make its contents searchable. Link discovery is separate from successful ingestion.
 6. **Library:** seed documents plus device-local uploads. Original sources open at their cited physical page. Uploads are labelled as having unverified provenance.
+7. **Thesis file:** save a company belief, a disconfirming condition, one of five diligence lenses and a next-review date. Testing the thesis searches both routes and records a dated snapshot of that exact thesis version, citations and tool trail. Keyless search groups are not support/refutation labels; optional model stance labels require valid evidence citations. Up to eight reviews per file remain on this device. Dates do not schedule background activity.
+8. **Portfolio snapshot:** import a generic INR CSV with `ticker,market_value` and optional `name,sector,account,currency`. Values remain browser-local. Duplicate account/ticker rows, conflicting sectors, unsupported currencies and malformed values are rejected. Positions across accounts consolidate into company weights and sector exposure. This is not an MProfit API, proprietary-export parser, live revaluation, tax engine or XIRR calculation.
 
 ## Persistence and data handling
 
@@ -99,6 +103,7 @@ Run `python scripts/ingest_sources.py --help` for supported refresh options. Raw
 - The PDF is sent to the app server for parsing. Its bytes are not intentionally stored server-side.
 - Research requests send the selected issuer's uploaded text to the app server. When synthesis is enabled, the model provider receives retrieved passages and questions.
 - Saved notes and alert thresholds use localStorage. They do not synchronize across devices.
+- Thesis files, their bounded review histories and imported holdings snapshots also use localStorage. Holdings values are not included in research/model requests. A thesis and its disconfirming condition are sent for processing only when the user tests them.
 - Server provider secrets are never sent to the browser.
 - New Sites deployments are owner-private. A public evaluator link and a GitHub submission repository require separate sharing/publishing decisions.
 
@@ -115,11 +120,17 @@ Tests cover issuer isolation, period/type filtering, a newly ingested ticker, mi
 
 Initial verification: 19 automated checks passed, including cross-quarter retrieval coverage and a real HCLTech PDF import. Read-only live integration requests returned an Infosys EOD quote dated October 30, 2026, 24 discovered disclosure links and 40 NSE announcement rows. Desktop and 390-pixel mobile browser previews were inspected; the mobile page had no horizontal overflow. The owner-private hosted deployment requires ChatGPT sign-in; local browser QA used the same Worker code through the local adapter.
 
+ENAM-informed additions extend verification to 30 checks, including two-route thesis retrieval, cited stance validation, a mocked model review, multi-account consolidation, decimal precision, duplicate detection, malformed CSV/currency rejection and undefined zero-value weights.
+
+The additions were also exercised through the browser: save and test a thesis, edit it and retain its earlier review, import the illustrative three-row CSV, verify the consolidated INR 300,000 total and 66.7%/33.3% company/sector weights, and filter the second account to INR 80,000. Both new pages were checked at a 390-pixel viewport without horizontal overflow.
+
 `npm run build` emits `dist/server/index.js` and `.openai/hosting.json` for the Sites Worker deployment. The hosting project identity remains in the tracked source manifest.
 
 ## Scope and deliberate tradeoffs
 
 Implemented: mobile workspace; actual source ingestion; general issuer-scoped retrieval; source citations; bounded configurable agent; numerical tools; paper trail; device-local imports/bookmarks; historical briefing; on-demand market/filing integrations.
+
+Also implemented: source-informed diligence lenses, versioned company thesis reviews, review-date cues, and a browser-local INR portfolio snapshot with account consolidation and exposure calculations. The example watchlist replaces ITC with Pidilite as a limited ENAM-oriented demo choice; it is not ENAM's actual portfolio or a full mandate-compliance screen.
 
 Not implemented: scheduled ingestion, continuous monitoring, operating-system push notifications, full portfolio fundamentals, all eight research sections, verified people-background enrichment, OCR, automatic PDF import from discovered URLs, or durable multi-user storage. Some source providers block automated requests; errors remain visible. The initial research corpus is historical and covers four issuers, not all 18 watchlist names. There are no buy/sell recommendations or trade execution.
 

@@ -1,0 +1,4 @@
+ticker,name,sector,account,market_value,currency
+INFY,Infosys,Technology,Example A,120000,INR
+INFY,Infosys,Technology,Example B,80000,INR
+LT,Larsen & Toubro,Industrials,Example A,100000,INR

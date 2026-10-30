@@ -1,12 +1,14 @@
 import HTML from './index.html';
 import CSS from './styles.css';
 import boot from './client.js';
+import createPortfolioTools from './portfolio.js';
+import {LENSES,reviewThesis} from './diligence.js';
 import corpus from '../data/corpus.json';
 import guidance from '../data/guidance.json';
 import {runResearch,retrieve,chunkPages} from './research.js';
 import {extractText,getDocumentProxy} from 'unpdf';
 
-const PORTFOLIO=[['INFY','Infosys','Technology'],['TCS','Tata Consultancy Services','Technology'],['HCLTECH','HCLTech','Technology'],['LT','Larsen & Toubro','Industrials'],['RELIANCE','Reliance Industries','Diversified'],['HDFCBANK','HDFC Bank','Banking'],['ICICIBANK','ICICI Bank','Banking'],['BHARTIARTL','Bharti Airtel','Telecom'],['ITC','ITC','Consumer'],['HINDUNILVR','Hindustan Unilever','Consumer'],['SUNPHARMA','Sun Pharma','Healthcare'],['DRREDDY','Dr. Reddy’s','Healthcare'],['MARUTI','Maruti Suzuki','Auto'],['M&M','Mahindra & Mahindra','Auto'],['TITAN','Titan','Consumer'],['ASIANPAINT','Asian Paints','Materials'],['ULTRACEMCO','UltraTech Cement','Materials'],['TATASTEEL','Tata Steel','Materials']].map(([ticker,name,sector])=>({ticker,name,sector}));
+const PORTFOLIO=[['INFY','Infosys','Technology'],['TCS','Tata Consultancy Services','Technology'],['HCLTECH','HCLTech','Technology'],['LT','Larsen & Toubro','Industrials'],['RELIANCE','Reliance Industries','Diversified'],['HDFCBANK','HDFC Bank','Banking'],['ICICIBANK','ICICI Bank','Banking'],['BHARTIARTL','Bharti Airtel','Telecom'],['PIDILITIND','Pidilite Industries','Materials'],['HINDUNILVR','Hindustan Unilever','Consumer'],['SUNPHARMA','Sun Pharma','Healthcare'],['DRREDDY','Dr. Reddy’s','Healthcare'],['MARUTI','Maruti Suzuki','Auto'],['M&M','Mahindra & Mahindra','Auto'],['TITAN','Titan','Consumer'],['ASIANPAINT','Asian Paints','Materials'],['ULTRACEMCO','UltraTech Cement','Materials'],['TATASTEEL','Tata Steel','Materials']].map(([ticker,name,sector])=>({ticker,name,sector}));
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const cleanTicker=s=>String(s||'').toUpperCase().replace(/\.(NS|BO)$/,'').trim();
 const validTicker=s=>/^[A-Z0-9&-]{1,24}$/.test(s);
@@ -61,7 +63,8 @@ export default {async fetch(request,env={}){
  try{
   if(request.method==='GET'&&path==='/')return new Response(HTML,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'}});
   if(request.method==='GET'&&path==='/styles.css')return new Response(CSS,{headers:{'Content-Type':'text/css; charset=utf-8'}});
-  if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')();',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
+  if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')(('+createPortfolioTools.toString()+')());',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
+  if(request.method==='GET'&&path==='/api/diligence')return json({lenses:LENSES,method:'A product interpretation of ENAM’s public investment approach, not its internal research system.',sources:[{title:'ENAM investment philosophy',url:'https://www.enam.com/investment-philosophy.html'},{title:'ENAM approach and governance',url:'https://www.enam.com/about-us.html'},{title:'ENAM culture and objectivity',url:'https://www.enam.com/culture.html'}]});
   if(request.method==='GET'&&path==='/api/library')return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:!!env.FINN_MODEL&&!!(env.FINN_API_KEY||env.FINN_PROVIDER==='ollama'),provider:env.FINN_MODEL?env.FINN_PROVIDER||'compatible':null,version:'0.1.0'});
   if(request.method==='GET'&&path==='/api/briefing')return json({items:briefing(),mode:'archive',note:'Historical source replay. These are research prompts, not live market alerts.'});
   if(request.method==='GET'&&path==='/api/case-study')return json({...guidance,evidence:[...guidance.revisions,guidance.actual].map(r=>{const c=corpus.chunks.find(c=>c.id===r.evidenceId);return c?{...c,document:corpus.documents.find(d=>d.id===c.documentId)}:null}).filter(Boolean)});
@@ -69,6 +72,11 @@ export default {async fetch(request,env={}){
    const body=await readJSON(request);const query=String(body.query||'').trim().slice(0,1200),ticker=cleanTicker(body.ticker);
    if(query.length<3||ticker&&!validTicker(ticker))return json({error:'Enter a question and a valid NSE ticker.'},400);
    return json(await runResearch({query,ticker,corpus:combine(body.extraCorpus),env}));
+  }
+  if(request.method==='POST'&&path==='/api/review'){
+   const body=await readJSON(request);const ticker=cleanTicker(body.ticker),thesis=String(body.thesis||'').trim(),disconfirm=String(body.disconfirm||'').trim();
+   if(!validTicker(ticker)||thesis.length<10||thesis.length>1000||disconfirm.length<10||disconfirm.length>1000||!LENSES.some(l=>l.id===body.lens))return json({error:'Choose a research lens, an NSE ticker, and a thesis and disconfirming condition of 10–1,000 characters each.'},400);
+   return json(await reviewThesis({ticker,thesis,disconfirm,lens:body.lens,corpus:combine(body.extraCorpus),env}));
   }
   if(request.method==='POST'&&path==='/api/search'){
    const body=await readJSON(request);return json({evidence:retrieve(combine(body.extraCorpus),{query:String(body.query||'').slice(0,1200),ticker:cleanTicker(body.ticker),limit:8})});

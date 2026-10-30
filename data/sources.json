@@ -1,0 +1,90 @@
+[
+  {
+    "id": "infy-q4-fy25",
+    "ticker": "INFY",
+    "title": "Infosys Q4 FY25 earnings call",
+    "type": "transcript",
+    "date": "2025-04-17",
+    "period": "Q4 FY25",
+    "url": "https://nsearchives.nseindia.com/corporate/Infosys_22042025213147_SEfiling_Earningscalltranscript.pdf",
+    "companyUrl": "https://www.infosys.com/investors/reports-filings/quarterly-results/2024-2025/q4/documents/transcripts/earningscall.pdf"
+  },
+  {
+    "id": "infy-q1-fy26",
+    "ticker": "INFY",
+    "title": "Infosys Q1 FY26 earnings call",
+    "type": "transcript",
+    "date": "2025-07-23",
+    "period": "Q1 FY26",
+    "url": "https://nsearchives.nseindia.com/corporate/Infosys_28072025173504_SEfiling_Earningscalltranscript_28072025.pdf",
+    "companyUrl": "https://www.infosys.com/investors/reports-filings/quarterly-results/2025-2026/q1/documents/transcripts/earningscall.pdf"
+  },
+  {
+    "id": "infy-q2-fy26",
+    "ticker": "INFY",
+    "title": "Infosys Q2 FY26 earnings call",
+    "type": "transcript",
+    "date": "2025-10-16",
+    "period": "Q2 FY26",
+    "url": "https://nsearchives.nseindia.com/corporate/Infosys_21102025214121_SEfiling_Earningscalltranscript_q2.pdf",
+    "companyUrl": "https://www.infosys.com/investors/reports-filings/quarterly-results/2025-2026/q2/documents/transcripts/earningscall.pdf"
+  },
+  {
+    "id": "infy-q3-fy26",
+    "ticker": "INFY",
+    "title": "Infosys Q3 FY26 earnings call",
+    "type": "transcript",
+    "date": "2026-01-14",
+    "period": "Q3 FY26",
+    "url": "https://nsearchives.nseindia.com/corporate/Infosys_19012026222220_SEfiling_Earningscalltranscript_19012026.pdf",
+    "companyUrl": "https://www.infosys.com/investors/reports-filings/quarterly-results/2025-2026/q3/documents/transcripts/earningscall.pdf"
+  },
+  {
+    "id": "infy-q4-fy26",
+    "ticker": "INFY",
+    "title": "Infosys Q4 FY26 earnings call",
+    "type": "transcript",
+    "date": "2026-04-23",
+    "period": "Q4 FY26",
+    "url": "https://nsearchives.nseindia.com/corporate/Infosys_27042026203405_Transcript_April232026_Q4.pdf",
+    "companyUrl": "https://www.infosys.com/investors/reports-filings/quarterly-results/2025-2026/q4/documents/transcripts/earningscall.pdf"
+  },
+  {
+    "id": "infy-ar-fy26",
+    "ticker": "INFY",
+    "title": "Infosys integrated annual report FY26",
+    "type": "annual_report",
+    "date": "2026-05-29",
+    "period": "FY26",
+    "url": "https://nsearchives.nseindia.com/corporate/Infosys_29052026201312_Infosys_Integrated_Annual_Report_2025-26.pdf",
+    "companyUrl": "https://www.infosys.com/investors/reports-filings/annual-report/annual/documents/infosys-ar-26.pdf"
+  },
+  {
+    "id": "tcs-q4-fy26",
+    "ticker": "TCS",
+    "title": "TCS Q4 FY26 earnings call",
+    "type": "transcript",
+    "date": "2026-04-09",
+    "period": "Q4 FY26",
+    "url": "https://nsearchives.nseindia.com/corporate/TCS_CORPCS_14042026200132_SEInt14042026_signed.pdf",
+    "companyUrl": "https://www.tcs.com/content/dam/tcs/investor-relations/financial-statements/2025-26/q4/Management%20Commentary/Transcript%20of%20the%20Q4%202025-26%20Earnings%20Conference%20Call%20held%20at%201900%20hrs%20IST%20on%20April%209%2C%202026.pdf"
+  },
+  {
+    "id": "hcl-q4-fy26",
+    "ticker": "HCLTECH",
+    "title": "HCLTech Q4 FY26 earnings call",
+    "type": "transcript",
+    "date": "2026-04-21",
+    "period": "Q4 FY26",
+    "url": "https://www.hcltech.com/sites/default/files/en/investors/3098/hcltech-earnings-q4-fy26-transcript.pdf"
+  },
+  {
+    "id": "lt-q2-fy26",
+    "ticker": "LT",
+    "title": "Larsen & Toubro Q2 FY26 earnings call",
+    "type": "transcript",
+    "date": "2025-10-29",
+    "period": "Q2 FY26",
+    "url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL%26T%20Q2FY26%20Earnings%20Call%20Transcript%20.pdf"
+  }
+]

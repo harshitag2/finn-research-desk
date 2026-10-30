@@ -1,0 +1,15 @@
+{
+ "ticker":"INFY",
+ "title":"A year of guidance, checked against delivery.",
+ "metric":"Revenue growth",
+ "basis":"Consolidated, year-on-year, constant currency",
+ "targetPeriod":"FY26",
+ "provenance":"Source-checked structured example. Research questions use the general retrieval pipeline.",
+ "revisions":[
+  {"date":"2025-04-17","label":"Initial outlook","low":0,"high":3,"evidenceId":"infy-q4-fy25-p4-c2"},
+  {"date":"2025-07-23","label":"Q1 revision","low":1,"high":3,"evidenceId":"infy-q1-fy26-p3-c2"},
+  {"date":"2025-10-16","label":"Q2 revision","low":2,"high":3,"evidenceId":"infy-q2-fy26-p3-c1"},
+  {"date":"2026-01-14","label":"Q3 revision","low":3,"high":3.5,"evidenceId":"infy-q3-fy26-p4-c1"}
+ ],
+ "actual":{"date":"2026-04-23","value":3.1,"evidenceId":"infy-q4-fy26-p28-c1"}
+}

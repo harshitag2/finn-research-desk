@@ -11,6 +11,11 @@ test('retrieval respects period and type',()=>{
  const results=retrieve(corpus,{query:'revenue growth guidance',ticker:'INFY',period:'Q3 FY26',type:'transcript'});
  assert.ok(results.length);assert.ok(results.every(e=>e.document.period==='Q3 FY26'&&e.document.type==='transcript'));
 });
+test('guidance-over-time retrieval covers each quarterly disclosure',()=>{
+ const evidence=retrieve(corpus,{query:'How did revenue growth guidance change through FY26?',ticker:'INFY',limit:6});
+ const documents=new Set(evidence.map(e=>e.documentId));
+ for(const id of ['infy-q4-fy25','infy-q1-fy26','infy-q2-fy26','infy-q3-fy26','infy-q4-fy26'])assert.ok(documents.has(id),'Missing '+id);
+});
 test('an unfamiliar ticker with no indexed evidence has no fabricated answer',async()=>{
  const r=await runResearch({query:'What guidance did management give?',ticker:'PIDILITIND',corpus});
  assert.equal(r.mode,'evidence');assert.equal(r.evidence.length,0);assert.equal(r.findings.length,0);assert.match(r.summary,/No matching evidence/);

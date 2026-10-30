@@ -18,7 +18,11 @@ export function retrieve(corpus,{query,ticker='',limit=6,type='',period=''}={}){
   }
   return {...c,score:Number(score.toFixed(3)),document:docs.get(c.documentId)};
  }).filter(c=>c.score>0).sort((a,b)=>b.score-a.score);
- const seen=new Set();return ranked.filter(c=>{const key=c.documentId+':'+c.page;if(seen.has(key))return false;seen.add(key);return true}).slice(0,Math.min(12,limit));
+ const seen=new Set();const pages=ranked.filter(c=>{const key=c.documentId+':'+c.page;if(seen.has(key))return false;seen.add(key);return true});
+ // Time-series questions need coverage across disclosures, not six similar pages.
+ const comparative=/guidance|through|trajectory|trend|compare|versus|changed|over time/i.test(query);
+ if(comparative&&!period){const docsSeen=new Set();const first=[],rest=[];for(const c of pages){if(docsSeen.has(c.documentId))rest.push(c);else{docsSeen.add(c.documentId);first.push(c)}}return [...first,...rest].slice(0,Math.min(12,limit));}
+ return pages.slice(0,Math.min(12,limit));
 }
 export function calculateChange(current,previous){
  if(!Number.isFinite(current)||!Number.isFinite(previous))throw new Error('Use finite numbers');

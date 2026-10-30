@@ -82,11 +82,11 @@ python scripts/ingest_sources.py
 python scripts/ingest_sources.py --offline
 ```
 
-Run `python scripts/ingest_sources.py --help` for supported refresh options. Raw PDFs are cached under `data/raw/` and excluded from Git; extracted passages retain source attribution. The ingestion report includes failures and checksums.
+Run `python scripts/ingest_sources.py --help` for supported refresh options. Raw PDFs are cached under `data/raw/` and excluded from Git; extracted passages retain source attribution. The ingestion report includes failures; each corpus document includes its PDF checksum.
 
 ## Product workflows
 
-1. **Briefing:** a historical replay of real disclosures, with company/date/period and original-source links. The April 2026 window is explicit. Last 24 hours can correctly show an empty state.
+1. **Briefing:** a historical replay of real disclosures, with source-checked editorial headlines, company/date/period and original-source links. The April 2026 window is explicit. Last 24 hours can correctly show an empty state.
 2. **Research:** any NSE ticker, a research question, relevant passages, optional model-led tool execution, citations, known gaps, saved notes and Markdown export.
 3. **Portfolio:** an illustrative 18-company watchlist across sectors. Market requests fetch Yahoo daily close and volume; configurable thresholds are evaluated against completed sessions. Volume baseline excludes the tested session.
 4. **Exchange filings:** attempts an on-demand NSE announcement request. Access failures are shown honestly; no exchange restrictions are bypassed and prices are not invented.
@@ -112,6 +112,8 @@ node scripts/validate-artifact.mjs
 ```
 
 Tests cover issuer isolation, period/type filtering, a newly ingested ticker, missing evidence, zero-base arithmetic, mismatched guidance periods, citation rejection, model tool calls using a mock provider, tool budget, provider fallback, API routes and actual PDF parsing. The real-PDF integration test skips on a fresh checkout until raw PDFs have been downloaded. Mock-provider tests do not verify an actual provider's availability.
+
+Initial verification: 19 automated checks passed, including cross-quarter retrieval coverage and a real HCLTech PDF import. Read-only live integration requests returned an Infosys EOD quote dated October 30, 2026, 24 discovered disclosure links and 40 NSE announcement rows. Desktop and 390-pixel mobile browser previews were inspected; the mobile page had no horizontal overflow. The owner-private hosted deployment requires ChatGPT sign-in; local browser QA used the same Worker code through the local adapter.
 
 `npm run build` emits `dist/server/index.js` and `.openai/hosting.json` for the Sites Worker deployment. The hosting project identity remains in the tracked source manifest.
 

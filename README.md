@@ -24,12 +24,12 @@ Copy `.env.example` to `.env` for local development. Use production runtime secr
 | Provider value | Configuration |
 | --- | --- |
 | `compatible` | `FINN_MODEL`, `FINN_API_KEY`, full `FINN_API_URL` ending in your provider's chat-completions endpoint |
-| `gemini` | `FINN_MODEL`, `FINN_API_KEY`; calls the official `generateContent` REST endpoint |
+| `gemini` (default) | `GEMINI_API_KEY` (also accepts `GOOGLE_API_KEY` or `FINN_API_KEY`), optional `FINN_MODEL`; default `gemini-3.1-flash-lite`, using the official `generateContent` REST endpoint |
 | `ollama` | `FINN_MODEL`, `FINN_API_URL` such as `http://127.0.0.1:11434/api/chat`; local development only |
 
 Select a model that can return valid JSON. The agent uses a provider-neutral JSON action protocol rather than provider-specific function-calling schemas. Production Workers cannot reach a laptop's localhost Ollama instance.
 
-Without a configured model, the app explicitly displays **Evidence mode**. It returns original passages and citations, not a simulated model answer. The model connection, quota and output quality must be checked with the actual provider before submission; live paid-provider calls were not performed during the initial build.
+Without a configured model, the app explicitly displays **Evidence mode**. It returns original passages and citations, not a simulated model answer. The deployed app now has a server-side Gemini secret and uses `gemini-3.1-flash-lite`. On October 31, a live grounded research request returned Infosys FY27 operating-margin guidance with a valid transcript-page citation. The key was authenticated against Google's model catalogue. Gemini 3.8 Flash was overloaded during testing and Gemini 2.5 Flash rejected new-user access; the working Flash-Lite model was selected after actual generation checks. Provider quota, availability and output quality still depend on the account and source coverage.
 
 ## Research architecture
 
@@ -90,7 +90,7 @@ Run `python scripts/ingest_sources.py --help` for supported refresh options. Raw
 
 1. **Briefing:** a historical replay of real disclosures, with source-checked editorial headlines, company/date/period and original-source links. The April 2026 window is explicit. Last 24 hours can correctly show an empty state.
 2. **Research:** any NSE ticker, a research question, relevant passages, optional model-led tool execution, citations, known gaps, saved notes and Markdown export.
-3. **Portfolio:** an illustrative 18-company watchlist across sectors. Market requests fetch Yahoo daily close and volume; configurable thresholds are evaluated against completed sessions. Volume baseline excludes the tested session.
+3. **Portfolio:** latest provider prices and day changes for every watchlist/imported NSE ticker. The market tape refreshes every 60 seconds while the portfolio page is visible, pauses when hidden or in another app view, and supports manual refresh/pause. Per-price details show the exchange timestamp, session, previous close, volume and recent intraday chart. Yahoo quotes may be delayed: this is not a licensed tick-by-tick exchange feed. Quote timestamps remain unchanged when a cached value is shown. Separate Market requests fetch completed daily close/volume; EOD alert thresholds use completed sessions and exclude the tested session from the volume baseline.
 4. **Exchange filings:** attempts an on-demand NSE announcement request. Access failures are shown honestly; no exchange restrictions are bypassed and prices are not invented.
 5. **Discover / import:** links to reports and transcripts discovered from the selected company's Screener page. Download an original and import its PDF to make its contents searchable. Link discovery is separate from successful ingestion.
 6. **Library:** seed documents plus device-local uploads. Original sources open at their cited physical page. Uploads are labelled as having unverified provenance.
@@ -122,6 +122,8 @@ Initial verification: 19 automated checks passed, including cross-quarter retrie
 
 ENAM-informed additions extend verification to 30 checks, including two-route thesis retrieval, cited stance validation, a mocked model review, multi-account consolidation, decimal precision, duplicate detection, malformed CSV/currency rejection and undefined zero-value weights.
 
+The market/Gemini update extends automated coverage to 40 checks. Tests cover quote issuer/currency validation, exact exchange timestamps, open/closed sessions, missing comparison bases, partial batch failures, cache freshness, marked stale fallback, bounded upstream batches, Gemini key aliases, header-only credentials, quota failures and cited model output. A live batch returned valid quotes for all 18 portfolio stocks. A real Gemini research request completed with validated citations; live provider checks are separate from the repeatable mock-based tests. Browser QA verified all 18 prices, pause/manual refresh and quote provenance, plus the 390-pixel mobile layout without horizontal overflow.
+
 The additions were also exercised through the browser: save and test a thesis, edit it and retain its earlier review, import the illustrative three-row CSV, verify the consolidated INR 300,000 total and 66.7%/33.3% company/sector weights, and filter the second account to INR 80,000. Both new pages were checked at a 390-pixel viewport without horizontal overflow.
 
 `npm run build` emits `dist/server/index.js` and `.openai/hosting.json` for the Sites Worker deployment. The hosting project identity remains in the tracked source manifest.
@@ -145,10 +147,11 @@ Not implemented: scheduled ingestion, continuous monitoring, operating-system pu
 
 ## Assignment handoff
 
-Before submission: connect and verify a real model provider; confirm the evaluator can access the deployment; push source to the chosen GitHub repository; retain coding-agent conversation exports; write the covering note describing this final scope honestly. The assessment email is not sent by this app or build workflow.
+Before submission: confirm the evaluator can access the deployment; push source to the chosen GitHub repository; retain coding-agent conversation exports; write the covering note describing this final scope honestly. Gemini is configured and has passed a real cited-answer check. The assessment email is not sent by this app or build workflow.
 
 ### Implementation references
 
 - [unpdf: serverless PDF extraction](https://github.com/unjs/unpdf)
 - [Gemini generateContent REST reference](https://ai.google.dev/api/generate-content)
+- [Gemini thinking configuration](https://ai.google.dev/gemini-api/docs/generate-content/thinking)
 

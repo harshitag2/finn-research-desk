@@ -52,4 +52,4 @@ The mock watchlist substitutes Pidilite Industries for ITC. This avoids using a 
 - No implied partnership, copied internal interface, ENAM logo or affiliation claims.
 - No background monitoring or automatic notification claims. Review dates appear within the thesis file.
 - Browser-local thesis history and holdings do not synchronize across devices.
-- Model synthesis remains optional and unconfigured until the user connects a provider.
+- Model synthesis remains optional. The subsequent user-authorized Gemini setup uses a server-side secret; credentials and private provider responses are not part of this public research record.

@@ -3,6 +3,8 @@ import CSS from './styles.css';
 import boot from './client.js';
 import createPortfolioTools from './portfolio.js';
 import {LENSES,reviewThesis} from './diligence.js';
+import {fetchQuotes} from './market.js';
+import {modelConfig} from './model-config.js';
 import corpus from '../data/corpus.json';
 import guidance from '../data/guidance.json';
 import {runResearch,retrieve,chunkPages} from './research.js';
@@ -65,7 +67,12 @@ export default {async fetch(request,env={}){
   if(request.method==='GET'&&path==='/styles.css')return new Response(CSS,{headers:{'Content-Type':'text/css; charset=utf-8'}});
   if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')(('+createPortfolioTools.toString()+')());',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
   if(request.method==='GET'&&path==='/api/diligence')return json({lenses:LENSES,method:'A product interpretation of ENAM’s public investment approach, not its internal research system.',sources:[{title:'ENAM investment philosophy',url:'https://www.enam.com/investment-philosophy.html'},{title:'ENAM approach and governance',url:'https://www.enam.com/about-us.html'},{title:'ENAM culture and objectivity',url:'https://www.enam.com/culture.html'}]});
-  if(request.method==='GET'&&path==='/api/library')return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:!!env.FINN_MODEL&&!!(env.FINN_API_KEY||env.FINN_PROVIDER==='ollama'),provider:env.FINN_MODEL?env.FINN_PROVIDER||'compatible':null,version:'0.1.0'});
+  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.2.0'})}
+  if(request.method==='GET'&&path==='/api/quotes'){
+   const tickers=String(url.searchParams.get('tickers')||'').split(',').map(cleanTicker).filter(Boolean);
+   if(!tickers.length||tickers.length>50||tickers.some(t=>!validTicker(t)))return json({error:'Request between 1 and 50 valid NSE tickers.'},400);
+   return json(await fetchQuotes(tickers));
+  }
   if(request.method==='GET'&&path==='/api/briefing')return json({items:briefing(),mode:'archive',note:'Historical source replay. These are research prompts, not live market alerts.'});
   if(request.method==='GET'&&path==='/api/case-study')return json({...guidance,evidence:[...guidance.revisions,guidance.actual].map(r=>{const c=corpus.chunks.find(c=>c.id===r.evidenceId);return c?{...c,document:corpus.documents.find(d=>d.id===c.documentId)}:null}).filter(Boolean)});
   if(request.method==='POST'&&path==='/api/research'){

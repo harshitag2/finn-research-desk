@@ -50,6 +50,11 @@ export async function runResearch({query,ticker,corpus,env={},signal,review=null
  const trace=[];const started=Date.now();
  const mark=(tool,detail)=>trace.push({tool,detail,ms:Date.now()-started});
  mark('scope',ticker?'Research scope: '+ticker:'Search across the available source library');
+ const scopedDocs=corpus.documents.filter(d=>!ticker||d.ticker===ticker);
+ if(!scopedDocs.length){
+  mark('coverage_check','No indexed documents; model call skipped');
+  return {...evidenceFallback(query,[],trace,'Import a company annual report or earnings transcript, then rerun this question.'),mode:'coverage',summary:'Add sources for '+(ticker||'this research scope')+' to begin this investigation.',coverage:{status:'missing',tickers:ticker?[ticker]:[],documentCount:0},gaps:['No company disclosures are indexed in this scope. This is a source-coverage gap, not a conclusion about the business.']};
+ }
  const found=initialEvidence||retrieve(corpus,{query,ticker,limit:6});const selected=new Map(found.map(c=>[c.id,c]));
  mark('search_documents','BM25 search returned '+found.length+' passages from '+new Set(found.map(e=>e.documentId)).size+' documents');
  if(!modelConfig(env).configured)return evidenceFallback(query,found,trace);
@@ -81,11 +86,11 @@ export async function runResearch({query,ticker,corpus,env={},signal,review=null
   return evidenceFallback(query,[...selected.values()],trace,'Research reached its bounded tool budget. Showing retrieved evidence.');
  }catch(error){mark('provider_error','Model synthesis unavailable'+(error.status?' (HTTP '+error.status+')':'')+'; retrieval remains available');const detail=error.status===429?'Provider quota is exhausted. Check the Google project quota or billing.':error.status===503?'The model is temporarily busy. Try again shortly.':error.status===401||error.status===403?'The provider rejected access. Check the server-side key and its API permissions.':error.status===400?'The provider rejected the request. '+(error.safeDetail||'Check model configuration.'):(error.name==='TimeoutError'||error.name==='AbortError')?'The provider request timed out. Try again.':'Check server-side provider configuration or try again.';return evidenceFallback(query,[...selected.values()],trace,'Model request failed'+(error.status?' (HTTP '+error.status+')':'')+'. '+detail);}
 }
-async function modelJSON(messages,env,signal,onRetry){
+export async function modelJSON(messages,env,signal,onRetry,schema=ACTION_SCHEMA){
  const config=modelConfig(env);const provider=config.provider;let url,headers={'Content-Type':'application/json'},body;
  if(provider==='gemini'){
   url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(config.model)+':generateContent';headers['x-goog-api-key']=config.key;
-  body={systemInstruction:{parts:[{text:messages[0].content}]},contents:messages.slice(1).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]})),generationConfig:{responseMimeType:'application/json',responseJsonSchema:ACTION_SCHEMA,temperature:0.1,maxOutputTokens:3500,...(/^gemini-3/.test(config.model)?{thinkingConfig:{thinkingLevel:'low'}}:/^gemini-2\.5-flash/.test(config.model)?{thinkingConfig:{thinkingBudget:512}}:{})}};
+  body={systemInstruction:{parts:[{text:messages[0].content}]},contents:messages.slice(1).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]})),generationConfig:{responseMimeType:'application/json',responseJsonSchema:schema,temperature:0.1,maxOutputTokens:3500,...(/^gemini-3/.test(config.model)?{thinkingConfig:{thinkingLevel:'low'}}:/^gemini-2\.5-flash/.test(config.model)?{thinkingConfig:{thinkingBudget:512}}:{})}};
  }else{
   url=config.url;if(!url)throw new Error('FINN_API_URL missing');
   if(provider==='ollama')body={model:config.model,messages,stream:false,format:'json',options:{temperature:0.1,num_predict:3500}};

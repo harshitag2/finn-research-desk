@@ -1,10 +1,12 @@
 import HTML from './index.html';
 import CSS from './styles.css';
+import WORKSPACE_CSS from './workspace.css';
 import boot from './client.js';
 import createPortfolioTools from './portfolio.js';
 import {LENSES,reviewThesis} from './diligence.js';
 import {fetchQuotes} from './market.js';
 import {modelConfig} from './model-config.js';
+import {planCommand,compareCompanies} from './commands.js';
 import corpus from '../data/corpus.json';
 import guidance from '../data/guidance.json';
 import {runResearch,retrieve,chunkPages} from './research.js';
@@ -64,10 +66,21 @@ export default {async fetch(request,env={}){
  const url=new URL(request.url);const path=url.pathname;
  try{
   if(request.method==='GET'&&path==='/')return new Response(HTML,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'}});
-  if(request.method==='GET'&&path==='/styles.css')return new Response(CSS,{headers:{'Content-Type':'text/css; charset=utf-8'}});
+  if(request.method==='GET'&&path==='/styles.css')return new Response(CSS+'\n'+WORKSPACE_CSS,{headers:{'Content-Type':'text/css; charset=utf-8'}});
   if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')(('+createPortfolioTools.toString()+')());',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
   if(request.method==='GET'&&path==='/api/diligence')return json({lenses:LENSES,method:'A product interpretation of ENAM’s public investment approach, not its internal research system.',sources:[{title:'ENAM investment philosophy',url:'https://www.enam.com/investment-philosophy.html'},{title:'ENAM approach and governance',url:'https://www.enam.com/about-us.html'},{title:'ENAM culture and objectivity',url:'https://www.enam.com/culture.html'}]});
-  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.2.0'})}
+  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.3.0'})}
+  if(request.method==='POST'&&path==='/api/command'){
+   const body=await readJSON(request,12000),prompt=String(body.prompt||'').trim();
+   if(prompt.length<3||prompt.length>1200)return json({error:'Enter a workspace request of 3–1,200 characters.'},400);
+   const context={ticker:cleanTicker(body.context?.ticker)};
+   return json(await planCommand({prompt,context,companies:PORTFOLIO,env}));
+  }
+  if(request.method==='POST'&&path==='/api/compare'){
+   const body=await readJSON(request),tickers=[...new Set((Array.isArray(body.tickers)?body.tickers:[]).map(cleanTicker))],query=String(body.query||'').trim().slice(0,1200);
+   if(tickers.length<2||tickers.length>3||tickers.some(t=>!validTicker(t))||query.length<3)return json({error:'Choose two or three valid NSE companies and enter a comparison question.'},400);
+   return json(await compareCompanies({query,tickers,corpus:combine(body.extraCorpus),env}));
+  }
   if(request.method==='GET'&&path==='/api/quotes'){
    const tickers=String(url.searchParams.get('tickers')||'').split(',').map(cleanTicker).filter(Boolean);
    if(!tickers.length||tickers.length>50||tickers.some(t=>!validTicker(t)))return json({error:'Request between 1 and 50 valid NSE tickers.'},400);

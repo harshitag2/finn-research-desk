@@ -18,7 +18,7 @@ test('guidance-over-time retrieval covers each quarterly disclosure',()=>{
 });
 test('an unfamiliar ticker with no indexed evidence has no fabricated answer',async()=>{
  const r=await runResearch({query:'What guidance did management give?',ticker:'PIDILITIND',corpus});
- assert.equal(r.mode,'evidence');assert.equal(r.evidence.length,0);assert.equal(r.findings.length,0);assert.match(r.summary,/No matching evidence/);
+ assert.equal(r.mode,'coverage');assert.equal(r.evidence.length,0);assert.equal(r.findings.length,0);assert.deepEqual(r.coverage.tickers,['PIDILITIND']);assert.match(r.summary,/Add sources/);
 });
 test('retrieval generalizes to a newly ingested company',async()=>{
  const doc={id:'new-co',ticker:'NEWCO',title:'NEWCO call',type:'transcript',period:'Q1 FY27',url:'',date:'2026-07-01',pages:1};

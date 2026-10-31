@@ -1,6 +1,6 @@
 # FINN — The research desk
 
-A mobile-first investor workspace built around a briefing, a research notebook, and the original evidence. Warm paper, restrained green, editorial typography, financial tables and compact source cards establish a coherent visual direction.
+An investment workspace controlled from one natural-language command bar. A graphite navigation rail, source-backed guidance visualization, market tape, comparison canvas and page-level evidence inspector support the research workflow.
 
 The public-company research in [docs/enam-research.md](docs/enam-research.md) informed two additions: a falsifiable company thesis file and a small multi-account holdings snapshot workflow. These are product interpretations of public information, not claimed copies of ENAM's internal systems. MProfit is an adjacent ENAM-backed investment, not an integration partner of this prototype.
 
@@ -31,6 +31,21 @@ Select a model that can return valid JSON. The agent uses a provider-neutral JSO
 
 Without a configured model, the app explicitly displays **Evidence mode**. It returns original passages and citations, not a simulated model answer. The deployed app now has a server-side Gemini secret and uses `gemini-3.1-flash-lite`. On October 31, a live grounded research request returned Infosys FY27 operating-margin guidance with a valid transcript-page citation. The key was authenticated against Google's model catalogue. Gemini 3.8 Flash was overloaded during testing and Gemini 2.5 Flash rejected new-user access; the working Flash-Lite model was selected after actual generation checks. Provider quota, availability and output quality still depend on the account and source coverage.
 
+## Command workspace
+
+The persistent command bar accepts research, comparisons, quotes, navigation, source discovery, PDF/CSV import flows, thesis files, save/export and price refresh controls. Ctrl/Command K focuses it. Examples:
+
+- `Compare Infosys and TCS on FY27 growth guidance and show their prices`
+- `What did HDFC Bank management say about loan growth through FY26?`
+- `Show prices for Reliance and HDFC Bank`
+- `Find disclosures for ICICI Bank`
+- `Open my portfolio`
+- `Save this research note`
+
+Familiar commands and company aliases resolve deterministically; unfamiliar research phrasing can use Gemini intent routing. The server validates actions, ticker syntax, scope size and view names. Plans cannot execute code or arbitrary URLs. Follow-up research uses the current company. This is a bounded workspace agent, not arbitrary control over every UI setting. Recent commands stay on this device and can be rerun.
+
+The coverage gate skips the model when no documents exist. Comparison requires sources for every selected issuer and initially retrieves three passages per issuer. Coverage means documents exist, not that every requested period or metric is supported. Missing-source cards retain the question and offer discovery, PDF import and indexed alternatives. Discovery finds links; it does not automatically ingest or monitor those sites.
+
 ## Research architecture
 
 ```text
@@ -56,7 +71,7 @@ The server runs as an ES-module Worker. A small Node HTTP adapter serves the sam
 ### Grounding rules
 
 - Pull research uses company annual reports and earnings-call transcripts, not news or broker commentary.
-- Search is restricted to the selected issuer. Uploaded chunks inherit their document's issuer server-side, regardless of client chunk metadata.
+- Search is restricted to the selected issuer, or the explicitly selected two or three issuers in a comparison. Uploaded chunks inherit their document's issuer server-side, regardless of client chunk metadata.
 - A finding must cite retrieved chunk IDs; uncited findings and invented citation IDs are discarded.
 - Citation validation proves provenance, not semantic entailment. The original passage is always available for review.
 - Guidance and delivery must match fiscal period and accounting basis before the comparison tool issues a status.
@@ -66,12 +81,13 @@ The server runs as an ES-module Worker. A small Node HTTP adapter serves the sam
 
 ## Source corpus
 
-Nine real documents, four issuers, 1,670 page-aware passages:
+Twelve real documents, five issuers, 1,804 page-aware passages:
 
 - Infosys: Q4 FY25, Q1–Q4 FY26 transcripts and the FY26 integrated annual report.
 - TCS: Q4 FY26 transcript.
 - HCLTech: Q4 FY26 transcript.
 - Larsen & Toubro: Q2 FY26 transcript.
+- HDFC Bank: Q2, Q3 and Q4 FY26 transcripts from its official investor-relations site. Q1 FY26 is not indexed; answers must disclose that limit when comparing the entire year.
 
 `data/sources.json` records the official URLs. Where the company host was unavailable, an official NSE filing copy was used. Some NSE files contain both a press conference and an earnings call, plus cover letters. Page citations therefore use **physical pages in that exact PDF**, not the printed page number within a subdocument.
 
@@ -116,13 +132,13 @@ npm test
 node scripts/validate-artifact.mjs
 ```
 
-Tests cover issuer isolation, period/type filtering, a newly ingested ticker, missing evidence, zero-base arithmetic, mismatched guidance periods, citation rejection, model tool calls using a mock provider, tool budget, provider fallback, API routes and actual PDF parsing. The real-PDF integration test skips on a fresh checkout until raw PDFs have been downloaded. Mock-provider tests do not verify an actual provider's availability.
+Tests cover command intent and aliases, compound comparisons and quotes, bounded plan validation, missing-source gating, balanced multi-company retrieval, issuer isolation, period/type filtering, a newly ingested ticker, missing evidence, zero-base arithmetic, mismatched guidance periods, citation rejection, model tool calls using a mock provider, tool budget, provider fallback, API routes and actual PDF parsing. The real-PDF integration test skips on a fresh checkout until raw PDFs have been downloaded. Mock-provider tests do not verify an actual provider's availability.
 
 Initial verification: 19 automated checks passed, including cross-quarter retrieval coverage and a real HCLTech PDF import. Read-only live integration requests returned an Infosys EOD quote dated October 30, 2026, 24 discovered disclosure links and 40 NSE announcement rows. Desktop and 390-pixel mobile browser previews were inspected; the mobile page had no horizontal overflow. The owner-private hosted deployment requires ChatGPT sign-in; local browser QA used the same Worker code through the local adapter.
 
 ENAM-informed additions extend verification to 30 checks, including two-route thesis retrieval, cited stance validation, a mocked model review, multi-account consolidation, decimal precision, duplicate detection, malformed CSV/currency rejection and undefined zero-value weights.
 
-The market/Gemini update extends automated coverage to 41 checks. Tests cover quote issuer/currency validation, exact exchange timestamps, open/closed sessions, missing comparison bases, partial batch failures, cache freshness, marked stale fallback, bounded upstream batches, Gemini key aliases, header-only credentials, quota failures, a bounded transient-error retry and cited model output. A live batch returned valid quotes for all 18 portfolio stocks. A real Gemini research request completed with validated citations; live provider checks are separate from the repeatable mock-based tests. Browser QA verified all 18 prices, pause/manual refresh and quote provenance, plus the 390-pixel mobile layout without horizontal overflow.
+The market/Gemini update extends automated coverage to 46 checks. Tests cover quote issuer/currency validation, exact exchange timestamps, open/closed sessions, missing comparison bases, partial batch failures, cache freshness, marked stale fallback, bounded upstream batches, Gemini key aliases, header-only credentials, quota failures, a bounded transient-error retry and cited model output. A live batch returned valid quotes for all 18 portfolio stocks. A real Gemini research request completed with validated citations; live provider checks are separate from the repeatable mock-based tests. Browser QA verified all 18 prices, pause/manual refresh and quote provenance, plus the 390-pixel mobile layout without horizontal overflow.
 
 Gemini actions use a constrained JSON response schema. If the initial retrieved passages answer a question, the agent is instructed to finish immediately instead of requesting redundant tool rounds. This reduced the live guidance check to one model call. A hosted check before this refinement exposed a later-step provider timeout; the app retained the retrieved evidence and displayed the timeout reason.
 
@@ -138,7 +154,7 @@ Implemented: mobile workspace; actual source ingestion; general issuer-scoped re
 
 Also implemented: source-informed diligence lenses, versioned company thesis reviews, review-date cues, and a browser-local INR portfolio snapshot with account consolidation and exposure calculations. The example watchlist replaces ITC with Pidilite as a limited ENAM-oriented demo choice; it is not ENAM's actual portfolio or a full mandate-compliance screen.
 
-Not implemented: scheduled ingestion, continuous monitoring, operating-system push notifications, full portfolio fundamentals, all eight research sections, verified people-background enrichment, OCR, automatic PDF import from discovered URLs, or durable multi-user storage. Some source providers block automated requests; errors remain visible. The initial research corpus is historical and covers four issuers, not all 18 watchlist names. There are no buy/sell recommendations or trade execution.
+Not implemented: scheduled ingestion, continuous monitoring, operating-system push notifications, full portfolio fundamentals, all eight research sections, verified people-background enrichment, OCR, automatic PDF import from discovered URLs, or durable multi-user storage. Some source providers block automated requests; errors remain visible. The initial research corpus is historical and covers five issuers, not all 18 watchlist names. There are no buy/sell recommendations or trade execution.
 
 ## Suggested demo
 

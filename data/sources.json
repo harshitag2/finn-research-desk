@@ -86,5 +86,32 @@
     "date": "2025-10-29",
     "period": "Q2 FY26",
     "url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL%26T%20Q2FY26%20Earnings%20Call%20Transcript%20.pdf"
+  },
+  {
+    "id": "hdfcbank-q2-fy26",
+    "ticker": "HDFCBANK",
+    "title": "HDFC Bank Q2 FY26 earnings call",
+    "type": "transcript",
+    "date": "2025-10-18",
+    "period": "Q2 FY26",
+    "url": "https://www.hdfc.bank.in/content/dam/hdfcbankpws/in/en/personal-banking/about-us/stakeholders-information/disclosures/schedule-of-investor-and-analyst-meet-2025/17/27oct2025-transcript.pdf"
+  },
+  {
+    "id": "hdfcbank-q3-fy26",
+    "ticker": "HDFCBANK",
+    "title": "HDFC Bank Q3 FY26 earnings call",
+    "type": "transcript",
+    "date": "2026-01-17",
+    "period": "Q3 FY26",
+    "url": "https://www.hdfc.bank.in/content/dam/hdfcbankpws/in/en/personal-banking/about-us/stakeholders-information/disclosures/other-stock-exchange-disclosure/2026/SEintimationTranscriptofearningscall17_Jan_2026.pdf"
+  },
+  {
+    "id": "hdfcbank-q4-fy26",
+    "ticker": "HDFCBANK",
+    "title": "HDFC Bank Q4 FY26 earnings call",
+    "type": "transcript",
+    "date": "2026-04-18",
+    "period": "Q4 FY26",
+    "url": "https://www.hdfc.bank.in/content/dam/hdfcbankpws/in/en/pdf/about-us/financial-results/2025-2026/quarter-4/HDFCBank-Analyst-Apr18-2026-vF.pdf"
   }
 ]

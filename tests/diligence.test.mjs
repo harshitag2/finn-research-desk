@@ -14,7 +14,7 @@ test('keyless thesis evidence does not automatically classify the thesis as supp
 });
 test('missing issuer evidence stays unknown, including in a downside review',async()=>{
  const r=await reviewThesis({corpus,ticker:'UNKNOWNCO',thesis:'The company has a resilient balance sheet',disconfirm:'A material increase in debt would challenge the belief',lens:'downside'});
- assert.equal(r.evidence.length,0);assert.equal(r.findings.length,0);assert.ok(r.gaps.some(g=>/Add a relevant/.test(g)));
+ assert.equal(r.evidence.length,0);assert.equal(r.findings.length,0);assert.equal(r.mode,'coverage');assert.deepEqual(r.coverage.tickers,['UNKNOWNCO']);
 });
 test('stance labels require valid evidence and an allowed interpretation',()=>{
  const findings=validateFindings([{text:'headwind',evidenceIds:['a'],stance:'challenges'},{text:'unfounded',evidenceIds:['missing'],stance:'supports'},{text:'no rating',evidenceIds:['a'],stance:'buy'}],[{id:'a'}]);assert.equal(findings.length,2);assert.equal(findings[0].stance,'challenges');assert.equal(findings[1].stance,undefined);assert.equal(LENSES.length,5);

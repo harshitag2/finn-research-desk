@@ -15,7 +15,7 @@ test('public diligence context remains outside the company research corpus',asyn
 test('app shell, assets and library API are served by the production bundle',async()=>{
  const home=await call('/');assert.equal(home.status,200);assert.match(await home.text(),/FINN/);
  const js=await call('/app.js');assert.equal(js.headers.get('content-type'),'application/javascript; charset=utf-8');assert.match(await js.text(),/research-form/);
- const library=await(await call('/api/library')).json();assert.equal(library.portfolio.length,18);assert.equal(library.documents.length,9);assert.equal(library.providerConfigured,false);
+ const library=await(await call('/api/library')).json();assert.equal(library.portfolio.length,18);assert.equal(library.documents.length,12);assert.equal(library.providerConfigured,false);
 });
 test('briefing is explicitly historical and case study has five source passages',async()=>{
  const r=await(await call('/api/briefing')).json();assert.equal(r.mode,'archive');assert.equal(r.items.length,4);assert.ok(r.items.every(i=>i.evidence?.document?.url));

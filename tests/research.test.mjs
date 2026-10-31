@@ -11,6 +11,11 @@ test('retrieval respects period and type',()=>{
  const results=retrieve(corpus,{query:'revenue growth guidance',ticker:'INFY',period:'Q3 FY26',type:'transcript'});
  assert.ok(results.length);assert.ok(results.every(e=>e.document.period==='Q3 FY26'&&e.document.type==='transcript'));
 });
+test('explicit earnings-call dates prioritize financial passages in that disclosure',()=>{
+ const results=retrieve(corpus,{query:'What did management say about loan growth in the April 18, 2026 call? Cite the transcript.',ticker:'HDFCBANK'});
+ assert.ok(results.length);assert.ok(results.every(e=>e.document.id==='hdfcbank-q4-fy26'));assert.match(results[0].text,/loan|credit|advances/i);
+ assert.doesNotThrow(()=>retrieve(corpus,{query:'loan growth April 99, 2026',ticker:'HDFCBANK'}));
+});
 test('guidance-over-time retrieval covers each quarterly disclosure',()=>{
  const evidence=retrieve(corpus,{query:'How did revenue growth guidance change through FY26?',ticker:'INFY',limit:6});
  const documents=new Set(evidence.map(e=>e.documentId));

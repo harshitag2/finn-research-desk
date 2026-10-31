@@ -53,7 +53,7 @@ Official PDFs / user PDF import
         ↓
 Page-preserving text extraction → overlapping chunks → issuer + period metadata
         ↓
-BM25 retrieval with small finance-query expansions
+BM25 retrieval with finance-query expansions and explicit call-date scoping
         ↓
 Bounded research agent (up to five model decisions)
         ├─ search_documents: issuer / document type / reporting period filters
@@ -138,7 +138,7 @@ Initial verification: 19 automated checks passed, including cross-quarter retrie
 
 ENAM-informed additions extend verification to 30 checks, including two-route thesis retrieval, cited stance validation, a mocked model review, multi-account consolidation, decimal precision, duplicate detection, malformed CSV/currency rejection and undefined zero-value weights.
 
-The market/Gemini update extends automated coverage to 46 checks. Tests cover quote issuer/currency validation, exact exchange timestamps, open/closed sessions, missing comparison bases, partial batch failures, cache freshness, marked stale fallback, bounded upstream batches, Gemini key aliases, header-only credentials, quota failures, a bounded transient-error retry and cited model output. A live batch returned valid quotes for all 18 portfolio stocks. A real Gemini research request completed with validated citations; live provider checks are separate from the repeatable mock-based tests. Browser QA verified all 18 prices, pause/manual refresh and quote provenance, plus the 390-pixel mobile layout without horizontal overflow.
+The market/Gemini update extends automated coverage to 47 checks. Tests cover quote issuer/currency validation, exact exchange timestamps, open/closed sessions, missing comparison bases, partial batch failures, cache freshness, marked stale fallback, bounded upstream batches, Gemini key aliases, header-only credentials, quota failures, a bounded transient-error retry and cited model output. A live batch returned valid quotes for all 18 portfolio stocks. A real Gemini research request completed with validated citations; live provider checks are separate from the repeatable mock-based tests. Browser QA verified all 18 prices, pause/manual refresh and quote provenance, plus the 390-pixel mobile layout without horizontal overflow.
 
 Gemini actions use a constrained JSON response schema. If the initial retrieved passages answer a question, the agent is instructed to finish immediately instead of requesting redundant tool rounds. This reduced the live guidance check to one model call. A hosted check before this refinement exposed a later-step provider timeout; the app retained the retrieved evidence and displayed the timeout reason.
 

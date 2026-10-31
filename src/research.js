@@ -59,7 +59,7 @@ export async function runResearch({query,ticker,corpus,env={},signal,review=null
  const messages=[{role:'system',content:system+reviewInstructions+efficiencyInstructions},{role:'user',content:JSON.stringify({question:query,ticker,review,availableDocuments:corpus.documents.filter(d=>!ticker||d.ticker===ticker).map(({id,title,period,date,type})=>({id,title,period,date,type})),initialEvidence:found})}];
  try{
   for(let turn=0;turn<5;turn++){
-   const decision=await modelJSON(messages,env,signal);mark('model_step','Step '+(turn+1)+': '+String(decision.action||'invalid response'));
+   const decision=await modelJSON(messages,env,signal,detail=>mark('provider_retry',detail));mark('model_step','Step '+(turn+1)+': '+String(decision.action||'invalid response'));
    if(decision.action==='finish'){
     const evidence=[...selected.values()];const findings=validateFindings(decision.findings,evidence);
     if(!findings.length&&evidence.length)return evidenceFallback(query,evidence,trace,'The model did not return valid evidence citations. Showing original passages instead.');
@@ -81,7 +81,7 @@ export async function runResearch({query,ticker,corpus,env={},signal,review=null
   return evidenceFallback(query,[...selected.values()],trace,'Research reached its bounded tool budget. Showing retrieved evidence.');
  }catch(error){mark('provider_error','Model synthesis unavailable'+(error.status?' (HTTP '+error.status+')':'')+'; retrieval remains available');const detail=error.status===429?'Provider quota is exhausted. Check the Google project quota or billing.':error.status===503?'The model is temporarily busy. Try again shortly.':error.status===401||error.status===403?'The provider rejected access. Check the server-side key and its API permissions.':error.status===400?'The provider rejected the request. '+(error.safeDetail||'Check model configuration.'):(error.name==='TimeoutError'||error.name==='AbortError')?'The provider request timed out. Try again.':'Check server-side provider configuration or try again.';return evidenceFallback(query,[...selected.values()],trace,'Model request failed'+(error.status?' (HTTP '+error.status+')':'')+'. '+detail);}
 }
-async function modelJSON(messages,env,signal){
+async function modelJSON(messages,env,signal,onRetry){
  const config=modelConfig(env);const provider=config.provider;let url,headers={'Content-Type':'application/json'},body;
  if(provider==='gemini'){
   url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(config.model)+':generateContent';headers['x-goog-api-key']=config.key;
@@ -91,7 +91,15 @@ async function modelJSON(messages,env,signal){
   if(provider==='ollama')body={model:config.model,messages,stream:false,format:'json',options:{temperature:0.1,num_predict:3500}};
   else{headers.Authorization='Bearer '+config.key;body={model:config.model,messages,temperature:0.1,max_tokens:3500};}
  }
- const response=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal:signal||AbortSignal.timeout(35000)});
+ const deadline=signal||AbortSignal.timeout(35000);let response;
+ for(let attempt=0;attempt<2;attempt++){
+  response=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal:deadline});
+  if(provider!=='gemini'||response.status!==503||attempt!==0)break;
+  const retryAfter=Number(response.headers.get('retry-after'));if(retryAfter>2)break;
+  onRetry?.('Gemini returned HTTP 503; retrying once within the existing request deadline.');
+  try{await response.body?.cancel()}catch{}
+  await new Promise(resolve=>setTimeout(resolve,Math.max(500,retryAfter*1000)));
+ }
  const data=await response.json();if(!response.ok){const error=new Error('Provider HTTP '+response.status);error.status=response.status;error.safeDetail=String(data.error?.message||'').split(config.key).join('[redacted]').slice(0,220);throw error}
  let text=provider==='gemini'?data.candidates?.[0]?.content?.parts?.filter(p=>!p.thought).map(p=>p.text||'').join(''):provider==='ollama'?data.message?.content:data.choices?.[0]?.message?.content;
  text=String(text||'').replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'');return JSON.parse(text);

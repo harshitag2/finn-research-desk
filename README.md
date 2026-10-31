@@ -124,6 +124,8 @@ ENAM-informed additions extend verification to 30 checks, including two-route th
 
 The market/Gemini update extends automated coverage to 40 checks. Tests cover quote issuer/currency validation, exact exchange timestamps, open/closed sessions, missing comparison bases, partial batch failures, cache freshness, marked stale fallback, bounded upstream batches, Gemini key aliases, header-only credentials, quota failures and cited model output. A live batch returned valid quotes for all 18 portfolio stocks. A real Gemini research request completed with validated citations; live provider checks are separate from the repeatable mock-based tests. Browser QA verified all 18 prices, pause/manual refresh and quote provenance, plus the 390-pixel mobile layout without horizontal overflow.
 
+Gemini actions use a constrained JSON response schema. If the initial retrieved passages answer a question, the agent is instructed to finish immediately instead of requesting redundant tool rounds. This reduced the live guidance check to one model call. A hosted check before this refinement exposed a later-step provider timeout; the app retained the retrieved evidence and displayed the timeout reason.
+
 The additions were also exercised through the browser: save and test a thesis, edit it and retain its earlier review, import the illustrative three-row CSV, verify the consolidated INR 300,000 total and 66.7%/33.3% company/sector weights, and filter the second account to INR 80,000. Both new pages were checked at a 390-pixel viewport without horizontal overflow.
 
 `npm run build` emits `dist/server/index.js` and `.openai/hosting.json` for the Sites Worker deployment. The hosting project identity remains in the tracked source manifest.

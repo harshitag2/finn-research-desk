@@ -25,3 +25,11 @@ test('a failed refresh keeps a clearly marked last successful quote',async()=>{
 test('batch limits prevent unbounded upstream requests',async()=>{
  await assert.rejects(fetchQuotes([]),/between 1 and 50/);await assert.rejects(fetchQuotes(['../../secret']),/valid NSE/);await assert.rejects(fetchQuotes(Array.from({length:51},(_,i)=>'TEST'+i)),/between 1 and 50/);
 });
+test("network and timeout failures are explained without inventing a price", async () => {
+  const offline = await latestQuote("NETFAILCO", { fetcher: async () => { throw new TypeError("fetch failed"); }, now });
+  assert.equal(offline.price, null);
+  assert.match(offline.error, /Could not reach the quote provider/);
+  const slow = await latestQuote("SLOWCO", { fetcher: async () => { throw Object.assign(new Error("t"), { name: "TimeoutError" }); }, now });
+  assert.equal(slow.price, null);
+  assert.match(slow.error, /timed out/);
+});

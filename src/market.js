@@ -25,7 +25,7 @@ export async function latestQuote(ticker,{fetcher=fetch,now=Date.now()}={}){
    const response=await fetcher('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(ticker+'.NS')+'?range=1d&interval=1m',{headers:{'User-Agent':'Mozilla/5.0 FINN research prototype'},signal:AbortSignal.timeout(9000)});
    if(!response.ok)throw new Error('Quote source HTTP '+response.status);
    const value=normalizeQuote(await response.json(),ticker,now);cached.set(ticker,{cachedAt:now,value});return {...value,cacheAgeSeconds:0};
-  }catch(error){if(old)return {...old.value,stale:true,marketState:'unknown',error:'Source refresh failed; showing the last successful quote.',cacheAgeSeconds:Math.round((now-old.cachedAt)/1000)};return {ticker,error:error.message||'Quote unavailable',price:null,stale:false,fetchedAt:new Date(now).toISOString()};}
+  }catch(error){if(old)return {...old.value,stale:true,marketState:'unknown',error:'Source refresh failed; showing the last successful quote.',cacheAgeSeconds:Math.round((now-old.cachedAt)/1000)};return {ticker,error:error.name==='TimeoutError'||error.name==='AbortError'?'The quote provider timed out.':error.message==='fetch failed'?'Could not reach the quote provider (network error).':error.message||'Quote unavailable',price:null,stale:false,fetchedAt:new Date(now).toISOString()};}
   finally{inflight.delete(ticker)}
  })();inflight.set(ticker,task);return task;
 }

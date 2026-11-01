@@ -3,10 +3,17 @@ import CSS from './styles.css';
 import WORKSPACE_CSS from './workspace.css';
 import boot from './client.js';
 import createPortfolioTools from './portfolio.js';
+import createIntentTools from './intent.js';
 import {LENSES,reviewThesis} from './diligence.js';
 import {fetchQuotes} from './market.js';
 import {modelConfig} from './model-config.js';
-import {planCommand,compareCompanies} from './commands.js';
+import {planCommand} from './commands.js';
+import {investigateWorkspace} from './workspace-research.js';
+import {analyzePortfolio} from './deep-dive.js';
+import {fetchHistories,stockMetrics,alignOn,INDICES,BENCHMARK,SECTOR_INDEX} from './analytics.js';
+import createChartTools from './charts.js';
+import {resultsFirstCut,quarterFromLabel,fiscalLabel} from './results.js';
+import {buildDigest,fetchAnnouncements,classifyAnnouncement,summarise,CATEGORIES,CATEGORY_LABELS,DEFAULT_FOCUS,WINDOWS} from './digest.js';
 import corpus from '../data/corpus.json';
 import guidance from '../data/guidance.json';
 import {runResearch,retrieve,chunkPages} from './research.js';
@@ -55,43 +62,91 @@ async function discover(ticker){
  }
  return {ticker,source:url,links:links.slice(0,24),note:'Discovery links only. Import the original PDF to make its contents searchable. External availability varies.'};
 }
+// Exchange filings for one company: always a bounded 30-day window (an unbounded NSE request returns years of history).
 async function announcements(ticker){
- const origin='https://www.nseindia.com';const headers={'User-Agent':'Mozilla/5.0','Accept':'application/json','Referer':origin+'/companies-listing/corporate-filings-announcements'};
- const response=await fetch(origin+'/api/corporate-announcements?index=equities&symbol='+encodeURIComponent(ticker),{headers,signal:AbortSignal.timeout(12000)});
- if(!response.ok)throw new Error('Exchange feed unavailable (HTTP '+response.status+'). Archived company sources remain available.');
- const rows=await response.json();if(!Array.isArray(rows))throw new Error('Unexpected exchange response');
- return rows.slice(0,40).map(r=>({ticker,subject:String(r.desc||r.subject||''),details:String(r.attchmntText||''),date:r.an_dt||r.sort_date,url:typeof r.attchmntFile==='string'&&r.attchmntFile.startsWith('https://')?r.attchmntFile:'',source:'NSE'}));
+ try{
+  const rows=await fetchAnnouncements(ticker,{days:30});
+  return rows.slice(0,40).map(r=>{const c=classifyAnnouncement({desc:r.nseCategory,text:r.text});return {ticker,subject:r.nseCategory,details:summarise(r.text,r.nseCategory)||r.text,date:r.at,url:r.url,category:CATEGORY_LABELS[c.category],materiality:c.materiality,source:'NSE'}});
+ }catch(error){throw new Error('Exchange feed unavailable ('+error.message+'). Archived company sources remain available.')}
 }
 export default {async fetch(request,env={}){
  const url=new URL(request.url);const path=url.pathname;
  try{
   if(request.method==='GET'&&path==='/')return new Response(HTML,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'}});
   if(request.method==='GET'&&path==='/styles.css')return new Response(CSS+'\n'+WORKSPACE_CSS,{headers:{'Content-Type':'text/css; charset=utf-8'}});
-  if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')(('+createPortfolioTools.toString()+')());',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
+  if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')(('+createPortfolioTools.toString()+')(),('+createIntentTools.toString()+')(),('+createChartTools.toString()+')());',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
   if(request.method==='GET'&&path==='/api/diligence')return json({lenses:LENSES,method:'A product interpretation of ENAM’s public investment approach, not its internal research system.',sources:[{title:'ENAM investment philosophy',url:'https://www.enam.com/investment-philosophy.html'},{title:'ENAM approach and governance',url:'https://www.enam.com/about-us.html'},{title:'ENAM culture and objectivity',url:'https://www.enam.com/culture.html'}]});
-  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.3.0'})}
+  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.7.1',digest:{categories:CATEGORY_LABELS,defaultFocus:DEFAULT_FOCUS,windows:Object.keys(WINDOWS)}})}
   if(request.method==='POST'&&path==='/api/command'){
    const body=await readJSON(request,12000),prompt=String(body.prompt||'').trim();
    if(prompt.length<3||prompt.length>1200)return json({error:'Enter a workspace request of 3–1,200 characters.'},400);
-   const context={ticker:cleanTicker(body.context?.ticker)};
+   const context={ticker:cleanTicker(body.context?.ticker),tickers:(Array.isArray(body.context?.tickers)?body.context.tickers:[]).map(cleanTicker).filter(validTicker).slice(0,3),view:['briefing','research','portfolio','library','thesis','saved'].includes(body.context?.view)?body.context.view:''};
    return json(await planCommand({prompt,context,companies:PORTFOLIO,env}));
   }
   if(request.method==='POST'&&path==='/api/compare'){
    const body=await readJSON(request),tickers=[...new Set((Array.isArray(body.tickers)?body.tickers:[]).map(cleanTicker))],query=String(body.query||'').trim().slice(0,1200);
    if(tickers.length<2||tickers.length>3||tickers.some(t=>!validTicker(t))||query.length<3)return json({error:'Choose two or three valid NSE companies and enter a comparison question.'},400);
-   return json(await compareCompanies({query,tickers,corpus:combine(body.extraCorpus),env}));
+   return json(await investigateWorkspace({query,tickers,companies:PORTFOLIO,corpus:combine(body.extraCorpus),env,includePrices:body.includePrices===true,separateMarket:body.separateMarket===true}));
   }
   if(request.method==='GET'&&path==='/api/quotes'){
    const tickers=String(url.searchParams.get('tickers')||'').split(',').map(cleanTicker).filter(Boolean);
    if(!tickers.length||tickers.length>50||tickers.some(t=>!validTicker(t)))return json({error:'Request between 1 and 50 valid NSE tickers.'},400);
    return json(await fetchQuotes(tickers));
   }
+  if(request.method==='POST'&&path==='/api/analyze'){
+   const body=await readJSON(request),prompt=String(body.prompt||'Give me a deep analysis of my portfolio').trim().slice(0,1200);
+   const raw=Array.isArray(body.holdings)&&body.holdings.length?body.holdings:PORTFOLIO.map(c=>({...c,weight:1}));
+   const holdings=[];
+   for(const h of raw.slice(0,30)){const ticker=cleanTicker(h.ticker),weight=Number(h.weight??h.marketValue??1);if(!validTicker(ticker)||!Number.isFinite(weight)||weight<0)return json({error:'Holdings need valid NSE tickers and non-negative weights or market values.'},400);if(weight>0&&!holdings.some(x=>x.ticker===ticker))holdings.push({ticker,weight,name:String(h.name||PORTFOLIO.find(c=>c.ticker===ticker)?.name||ticker).slice(0,80),sector:String(h.sector||PORTFOLIO.find(c=>c.ticker===ticker)?.sector||'Unclassified').slice(0,40)})}
+   if(!holdings.length)return json({error:'Add at least one holding with a positive weight.'},400);
+   const prefs={priceThreshold:Math.min(50,Math.max(0.1,Number(body.prefs?.priceThreshold)||4)),volumeThreshold:Math.min(20,Math.max(1,Number(body.prefs?.volumeThreshold)||2))};
+   return json(await analyzePortfolio({prompt,holdings,corpus:combine(body.extraCorpus),env,prefs}));
+  }
+  if(request.method==='GET'&&path==='/api/markets'){
+   const symbols=Object.keys(INDICES),h=await fetchHistories(symbols);
+   const bench=h[BENCHMARK]?.ok?h[BENCHMARK].data:null;
+   const indices=symbols.map(symbol=>h[symbol]?.ok?{symbol,...stockMetrics(h[symbol].data,symbol===BENCHMARK?null:bench)}:{symbol,name:INDICES[symbol],error:h[symbol]?.error||'unavailable'});
+   return json({indices,sectorMap:SECTOR_INDEX,source:'Yahoo Finance daily history (dividend-adjusted closes where supplied)',notice:'Index levels come from the provider and may be delayed. A session still in progress is labelled as partial.',fetchedAt:new Date().toISOString()});
+  }
+  if(request.method==='GET'&&path==='/api/universe'){
+   const tickers=[...new Set(String(url.searchParams.get('tickers')||'').split(',').map(cleanTicker).filter(Boolean))];
+   if(!tickers.length||tickers.length>40||tickers.some(t=>!validTicker(t)))return json({error:'Request between 1 and 40 valid NSE tickers.'},400);
+   const h=await fetchHistories([BENCHMARK,...tickers]),bench=h[BENCHMARK]?.ok?h[BENCHMARK].data:null;
+   return json({stocks:tickers.filter(t=>h[t]?.ok).map(t=>({ticker:t,...stockMetrics(h[t].data,bench)})),failures:tickers.filter(t=>!h[t]?.ok).map(t=>({ticker:t,error:h[t]?.error||'unavailable'})),benchmark:bench?{symbol:BENCHMARK,name:'Nifty 50',returns:stockMetrics(bench,null).returns}:null,source:'Yahoo Finance daily history',fetchedAt:new Date().toISOString()});
+  }
+  if(request.method==='GET'&&path==='/api/stock'){
+   const ticker=cleanTicker(url.searchParams.get('ticker')),sector=String(url.searchParams.get('sector')||PORTFOLIO.find(c=>c.ticker===ticker)?.sector||'').slice(0,40);
+   if(!validTicker(ticker))return json({error:'Invalid NSE ticker.'},400);
+   const peers=[...new Set(String(url.searchParams.get('peers')||'').split(',').map(cleanTicker).filter(t=>validTicker(t)&&t!==ticker))].slice(0,8);
+   const sectorIndex=SECTOR_INDEX[sector]||null;
+   const h=await fetchHistories([ticker,BENCHMARK,...(sectorIndex?[sectorIndex]:[]),...peers]);
+   if(!h[ticker]?.ok)return json({error:ticker+': '+(h[ticker]?.error||'price history unavailable')+'. No prices are estimated.'},502);
+   const stock=h[ticker].data,bench=h[BENCHMARK]?.ok?h[BENCHMARK].data:null,dates=stock.rows.map(r=>r.date);
+   const rebase=series=>{const v=alignOn(dates,series.rows).values,first=v.find(x=>x!==null);return v.map(x=>x===null||!first?null:Number((x/first*100).toFixed(2)))};
+   const own=stock.rows.map(r=>Number((r.adj/stock.rows[0].adj*100).toFixed(2)));
+   return json({ticker,sector,metrics:stockMetrics(stock,bench,{includeSeries:true}),relative:{dates,stock:own,benchmark:bench?{name:'Nifty 50',values:rebase(bench)}:null,sector:sectorIndex&&h[sectorIndex]?.ok?{symbol:sectorIndex,name:INDICES[sectorIndex],values:rebase(h[sectorIndex].data),metrics:stockMetrics(h[sectorIndex].data,bench)}:null},peers:peers.filter(t=>h[t]?.ok).map(t=>({ticker:t,...stockMetrics(h[t].data,bench)})),failures:[BENCHMARK,...peers].filter(t=>!h[t]?.ok).map(t=>({ticker:t,error:h[t]?.error})),source:'Yahoo Finance daily history',fetchedAt:new Date().toISOString()});
+  }
+  if(request.method==='GET'&&path==='/api/results'){
+   const ticker=cleanTicker(url.searchParams.get('ticker'));if(!validTicker(ticker))return json({error:'Invalid NSE ticker.'},400);
+   const q=String(url.searchParams.get('quarter')||'').trim(),quarter=/^\d{4}-(03-31|06-30|09-30|12-31)$/.test(q)?q:q?quarterFromLabel(q):null;
+   if(q&&!quarter)return json({error:'Use a quarter such as Q2 FY27 or 2026-09-30.'},400);
+   const b=url.searchParams.get('basis'),basis=['consolidated','standalone'].includes(b)?b:null;
+   return json(await resultsFirstCut({symbol:ticker,company:PORTFOLIO.find(c=>c.ticker===ticker)?.name||'',quarter,basis}));
+  }
+  if(request.method==='GET'&&path==='/api/digest'){
+   const tickers=[...new Set(String(url.searchParams.get('tickers')||'').split(',').map(cleanTicker).filter(Boolean))];
+   if(!tickers.length||tickers.length>30||tickers.some(t=>!validTicker(t)))return json({error:'Request between 1 and 30 valid NSE tickers.'},400);
+   const window=Object.keys(WINDOWS).includes(url.searchParams.get('window'))?url.searchParams.get('window'):'24h';
+   const focus=String(url.searchParams.get('focus')||'').split(',').filter(c=>CATEGORIES.includes(c));
+   const prefs={priceThreshold:Math.min(50,Math.max(0.1,Number(url.searchParams.get('price'))||4)),volumeThreshold:Math.min(20,Math.max(1,Number(url.searchParams.get('volume'))||2))};
+   return json(await buildDigest({tickers,names:Object.fromEntries(PORTFOLIO.map(c=>[c.ticker,c.name])),window,prefs,focus:url.searchParams.has('focus')?focus:DEFAULT_FOCUS}));
+  }
   if(request.method==='GET'&&path==='/api/briefing')return json({items:briefing(),mode:'archive',note:'Historical source replay. These are research prompts, not live market alerts.'});
   if(request.method==='GET'&&path==='/api/case-study')return json({...guidance,evidence:[...guidance.revisions,guidance.actual].map(r=>{const c=corpus.chunks.find(c=>c.id===r.evidenceId);return c?{...c,document:corpus.documents.find(d=>d.id===c.documentId)}:null}).filter(Boolean)});
   if(request.method==='POST'&&path==='/api/research'){
    const body=await readJSON(request);const query=String(body.query||'').trim().slice(0,1200),ticker=cleanTicker(body.ticker);
    if(query.length<3||ticker&&!validTicker(ticker))return json({error:'Enter a question and a valid NSE ticker.'},400);
-   return json(await runResearch({query,ticker,corpus:combine(body.extraCorpus),env}));
+   return json(await investigateWorkspace({query,tickers:ticker?[ticker]:[],companies:PORTFOLIO,corpus:combine(body.extraCorpus),env,includePrices:body.includePrices===true,separateMarket:body.separateMarket===true}));
   }
   if(request.method==='POST'&&path==='/api/review'){
    const body=await readJSON(request);const ticker=cleanTicker(body.ticker),thesis=String(body.thesis||'').trim(),disconfirm=String(body.disconfirm||'').trim();

@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-01",
+  "version": "0.7.1",
+  "incomingManifestFilesVerified": 125,
+  "automatedTests": {
+    "passed": 128,
+    "failed": 0,
+    "skipped": 0
+  },
+  "syntax": "passed",
+  "build": "passed",
+  "artifactValidation": "passed",
+  "liveLocalChecks": {
+    "quotes": "passed for INFY, TCS, HDFCBANK, PIDILITIND",
+    "mixedRequest": "market ready, document question excludes price clause",
+    "priceOnlyUncovered": "market ready, no document/model call",
+    "nseDigest": "ok, INFY/TCS seven-day window",
+    "infosysResults": "ok, 13 rows, 3/3 checks reconcile",
+    "stockHistory": "ok, no upstream failures",
+    "portfolioAnalysis": "18/18 holdings, 247 completed sessions"
+  },
+  "browserChecks": [
+    "actual mixed request preserves both quotes after research completion",
+    "actual portfolio deep dive renders computed metrics and charts",
+    "actual Infosys Q2 FY27 results command",
+    "390px results and price-only layout without page overflow",
+    "fixture-backed synthesis rejects unsupported forecast",
+    "fixture-backed quote outage exposes separate error and quote-only retry recovers"
+  ],
+  "historicalBrowserSuite": {
+    "claimedByIncomingHandoff": 111,
+    "rerunInThisSession": false
+  },
+  "localGemini": "not configured; real hosted validation follows publication",
+  "notes": [
+    "Quote observations retain Friday exchange timestamps on Sunday; no fabricated live ticks.",
+    "Mocked provider-failure and model checks use synthetic fixtures, not real market data."
+  ]
+}

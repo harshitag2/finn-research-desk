@@ -13,6 +13,17 @@ if(origin===DEFAULT_ORIGIN&&!input.token)throw new Error('A private-site service
 const redact=text=>input.token?String(text).split(input.token).join('[redacted]'):String(text);
 async function call(path,body){const response=await fetch(origin+path,{headers:{...(input.token?{'OAI-Sites-Authorization':'Bearer '+input.token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{method:'POST',body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(50000)});if(!response.ok)throw new Error(path+' returned HTTP '+response.status);return response.json()}
 async function verify(){try{
+ if(input.mode==='terminal'){
+  const library=await call('/api/library');
+  const r=await call('/api/terminal/quotes?tickers=INFY,TCS,HDFCBANK&source=auto');
+  const valid=r.quotes.length===3&&r.quotes.every(q=>Number.isFinite(q.price)&&q.price>0&&Number.isFinite(Date.parse(q.asOf))&&q.source);
+  console.log(JSON.stringify({check:'terminal',version:library.version,providerConfigured:library.providerConfigured,status:r.status,refreshSeconds:r.refreshSeconds,exchangeStatus:r.exchangeStatus,fallbackCount:r.fallbackCount,quotes:r.quotes.map(({ticker,price,asOf,marketState,source,fallbackReason})=>({ticker,price,asOf,marketState,source,fallbackReason}))}));
+  if(!valid||r.refreshSeconds!==15)process.exitCode=1;
+  const only=await call('/api/research',{ticker:'TCS',query:'TCS current stock price'});
+  console.log(JSON.stringify({check:'price_only',mode:only.mode,market:only.market?.status,modelSkipped:!only.trace?.some(t=>t.tool==='model_step')}));
+  if(only.mode!=='market'||only.market?.status!=='ready')process.exitCode=1;
+  return;
+ }
  if(input.mode==='acceptance'){
   const library=await call('/api/library');console.log(JSON.stringify({check:'library',version:library.version,provider:library.provider,configured:library.providerConfigured}));
   const mixed=await call('/api/compare',{tickers:['INFY','TCS'],query:'Compare Infosys and TCS on FY27 growth guidance and show their stock prices'});

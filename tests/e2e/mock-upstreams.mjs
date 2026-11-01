@@ -213,6 +213,7 @@ globalThis.fetch = async (input, options = {}) => {
   const url = typeof input === 'string' ? input : input.url;
   if (url.startsWith('https://query1.finance.yahoo.com/v8/finance/chart/')) return yahoo(url);
   if (url.startsWith('https://generativelanguage.googleapis.com/')) return gemini(options);
+  if (url.startsWith('https://www.nseindia.com/api/quote-equity')) return new Response('TEST FIXTURE: exchange access denied', {status:403});
   if (url.startsWith('https://www.nseindia.com/api/corporate-announcements')) return nse(url);
   if (url.startsWith('https://www.nseindia.com/api/integrated-filing-results') || url.startsWith('https://nsearchives.nseindia.com/corporate/xbrl/')) return integrated(url);
   if (/^https?:\/\/(127\.0\.0\.1|localhost)/.test(url)) return realFetch(input, options);

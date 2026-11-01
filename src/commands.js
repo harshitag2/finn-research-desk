@@ -2,8 +2,8 @@ import {modelJSON,runResearch,retrieve} from './research.js';
 import {modelConfig} from './model-config.js';
 import createIntentTools from './intent.js';
 
-const ACTIONS=['research','compare','prices','navigate','discover','import','thesis','save','export','pause','resume','analyze','markets','screen','stock','digest','results'];
-const VIEWS=['briefing','research','portfolio','library','thesis','saved','analysis','markets','stock'];
+const ACTIONS=['research','compare','prices','navigate','discover','import','thesis','save','export','pause','resume','analyze','markets','screen','stock','digest','results','terminal'];
+const VIEWS=['briefing','research','portfolio','library','thesis','saved','analysis','markets','stock','terminal'];
 const SCHEMA={type:'object',properties:{action:{type:'string',enum:ACTIONS},tickers:{type:'array',maxItems:3,items:{type:'string'}},query:{type:'string'},view:{type:'string',enum:VIEWS},includePrices:{type:'boolean'}},required:['action','tickers','query','includePrices'],additionalProperties:false};
 const intent=createIntentTools();
 const {aliases,entityNames}=intent;
@@ -74,15 +74,16 @@ export function validatePlan(plan,prompt,context={},companies=[]){
  // model router cannot turn "pricing power" into a quote request.
  const includePrices=['research','compare','prices'].includes(action)&&(action==='prices'||market.requested);
  const extra=action==='screen'?{screen:intent.parseScreen(prompt)}:action==='digest'?{digest:parseDigest(prompt)}:action==='results'?{results:parseResults(prompt)}:{};
- return {...extra,action,tickers,query:String(plan.query||prompt).slice(0,1200),view:{analyze:'analysis',markets:'markets',screen:'markets',stock:'stock',digest:'briefing',results:'stock'}[action]||view,includePrices,documentQuery:includePrices&&market.requested?market.documentQuery:String(plan.query||prompt).slice(0,1200)};
+ return {...extra,action,tickers,query:String(plan.query||prompt).slice(0,1200),view:{analyze:'analysis',markets:'markets',screen:'markets',stock:'stock',digest:'briefing',results:'stock',terminal:'terminal'}[action]||view,includePrices,documentQuery:includePrices&&market.requested?market.documentQuery:String(plan.query||prompt).slice(0,1200)};
 }
 export function parseCommand(prompt,context={},companies=[]){
  const q=prompt.trim(),s=q.toLowerCase(),tickers=mentions(q,companies),market=marketIntent(q,companies),prices=market.requested||/market tape|tracker/.test(s);
  let action='research',view='research';
  if(/^(save|bookmark)\b/.test(s))action='save';
  else if(/^export\b/.test(s))action='export';
- else if(/\b(pause|stop)\b.*\b(refresh|prices|quotes|tracker)\b/.test(s))action='pause';
- else if(/\b(resume|start|enable)\b.*\b(refresh|prices|quotes|tracker)\b/.test(s))action='resume';
+ else if(/\b(pause|stop)\b.*\b(refresh|prices|quotes|tracker|feed|terminal)\b/.test(s))action='pause';
+ else if(/\b(resume|start|enable)\b.*\b(refresh|prices|quotes|tracker|feed|terminal)\b/.test(s))action='resume';
+ else if(/\bterminal\b|\btrading desk\b/.test(s))action='terminal';
  else if(/\b(import|upload|add a pdf|add sources)\b/.test(s))action='import';
  else if(/\b(find|discover)\b.*\b(source|sources|disclosures|documents|reports|transcripts)\b/.test(s))action='discover';
  else if(/\b(thesis|conviction)\b/.test(s)&&/^(open|show|create|draft|write|start|test)\b/.test(s))action='thesis';

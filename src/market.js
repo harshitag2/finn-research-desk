@@ -17,8 +17,9 @@ export function normalizeQuote(raw,ticker,now=Date.now()){
  const intraday=(result.timestamp||[]).map((time,i)=>({time,price:indicators?.close?.[i]})).filter(p=>Number.isFinite(p.price)&&p.price>0&&p.time<=meta.regularMarketTime).slice(-90);
  return {ticker,name:meta.longName||meta.shortName||ticker,currency:meta.currency||'INR',price:meta.regularMarketPrice,previousClose:previous,change:previous===null?null:meta.regularMarketPrice-previous,changePercent:previous===null?null:(meta.regularMarketPrice-previous)/previous*100,asOf,fetchedAt:new Date(now).toISOString(),marketState,exchange:meta.fullExchangeName||meta.exchangeName||'NSE',delayMinutes:Number.isFinite(meta.exchangeDataDelayedBy)?meta.exchangeDataDelayedBy:null,dayHigh:Number.isFinite(meta.regularMarketDayHigh)?meta.regularMarketDayHigh:null,dayLow:Number.isFinite(meta.regularMarketDayLow)?meta.regularMarketDayLow:null,volume:Number.isFinite(meta.regularMarketVolume)?meta.regularMarketVolume:null,intraday,source:'Yahoo Finance',stale:false};
 }
-export async function latestQuote(ticker,{fetcher=fetch,now=Date.now()}={}){
- const old=cached.get(ticker);if(old&&now-old.cachedAt<TTL)return {...old.value,cacheAgeSeconds:Math.round((now-old.cachedAt)/1000)};
+export async function latestQuote(ticker,{fetcher=fetch,now=Date.now(),maxAgeMs=TTL}={}){
+ const lifetime=Math.max(15000,Math.min(TTL,maxAgeMs));
+ const old=cached.get(ticker);if(old&&now-old.cachedAt<lifetime)return {...old.value,cacheAgeSeconds:Math.round((now-old.cachedAt)/1000)};
  if(inflight.has(ticker))return inflight.get(ticker);
  const task=(async()=>{
   try{

@@ -6,6 +6,8 @@ import createPortfolioTools from './portfolio.js';
 import createIntentTools from './intent.js';
 import {LENSES,reviewThesis} from './diligence.js';
 import {fetchQuotes} from './market.js';
+import {terminalQuotes} from './exchange-quotes.js';
+import createTerminalTools from './terminal-tools.js';
 import {modelConfig} from './model-config.js';
 import {planCommand} from './commands.js';
 import {investigateWorkspace} from './workspace-research.js';
@@ -74,9 +76,9 @@ export default {async fetch(request,env={}){
  try{
   if(request.method==='GET'&&path==='/')return new Response(HTML,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'}});
   if(request.method==='GET'&&path==='/styles.css')return new Response(CSS+'\n'+WORKSPACE_CSS,{headers:{'Content-Type':'text/css; charset=utf-8'}});
-  if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')(('+createPortfolioTools.toString()+')(),('+createIntentTools.toString()+')(),('+createChartTools.toString()+')());',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
+  if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')(('+createPortfolioTools.toString()+')(),('+createIntentTools.toString()+')(),('+createChartTools.toString()+')(),('+createTerminalTools.toString()+')());',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
   if(request.method==='GET'&&path==='/api/diligence')return json({lenses:LENSES,method:'A product interpretation of ENAM’s public investment approach, not its internal research system.',sources:[{title:'ENAM investment philosophy',url:'https://www.enam.com/investment-philosophy.html'},{title:'ENAM approach and governance',url:'https://www.enam.com/about-us.html'},{title:'ENAM culture and objectivity',url:'https://www.enam.com/culture.html'}]});
-  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.7.1',digest:{categories:CATEGORY_LABELS,defaultFocus:DEFAULT_FOCUS,windows:Object.keys(WINDOWS)}})}
+  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.8.0',digest:{categories:CATEGORY_LABELS,defaultFocus:DEFAULT_FOCUS,windows:Object.keys(WINDOWS)}})}
   if(request.method==='POST'&&path==='/api/command'){
    const body=await readJSON(request,12000),prompt=String(body.prompt||'').trim();
    if(prompt.length<3||prompt.length>1200)return json({error:'Enter a workspace request of 3–1,200 characters.'},400);
@@ -92,6 +94,11 @@ export default {async fetch(request,env={}){
    const tickers=String(url.searchParams.get('tickers')||'').split(',').map(cleanTicker).filter(Boolean);
    if(!tickers.length||tickers.length>50||tickers.some(t=>!validTicker(t)))return json({error:'Request between 1 and 50 valid NSE tickers.'},400);
    return json(await fetchQuotes(tickers));
+  }
+  if(request.method==='GET'&&path==='/api/terminal/quotes'){
+   const tickers=String(url.searchParams.get('tickers')||'').split(',').map(cleanTicker).filter(Boolean),source=url.searchParams.get('source')||'auto';
+   if(!tickers.length||tickers.length>50||tickers.some(t=>!validTicker(t))||!['auto','nse','yahoo'].includes(source))return json({error:'Request 1–50 valid NSE symbols and choose auto, nse or yahoo.'},400);
+   return json(await terminalQuotes(tickers,{source}));
   }
   if(request.method==='POST'&&path==='/api/analyze'){
    const body=await readJSON(request),prompt=String(body.prompt||'Give me a deep analysis of my portfolio').trim().slice(0,1200);

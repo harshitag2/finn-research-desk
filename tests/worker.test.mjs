@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import worker from '../dist/server/index.js';
 const call=(path,options={})=>worker.fetch(new Request('https://finn.test'+path,options),{},{});
 test('quote batch endpoint validates inputs and model configuration exposes no credential',async()=>{
- assert.equal((await call('/api/quotes')).status,400);assert.equal((await call('/api/quotes?tickers=../../secret')).status,400);
+ assert.equal((await call('/api/terminal/quotes')).status,400);assert.equal((await call('/api/terminal/quotes?tickers=INFY&source=invalid')).status,400);assert.equal((await call('/api/terminal/quotes?tickers=../../secret')).status,400);assert.equal((await call('/api/quotes')).status,400);assert.equal((await call('/api/quotes?tickers=../../secret')).status,400);
  const response=await worker.fetch(new Request('https://finn.test/api/library'),{GEMINI_API_KEY:'test-secret'},{});const body=await response.json();assert.equal(body.providerConfigured,true);assert.equal(body.provider,'gemini');assert.ok(!JSON.stringify(body).includes('test-secret'));
 });
 test('public diligence context remains outside the company research corpus',async()=>{

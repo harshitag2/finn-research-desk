@@ -1,6 +1,7 @@
 import HTML from './index.html';
 import CSS from './styles.css';
 import WORKSPACE_CSS from './workspace.css';
+import STITCH_CSS from './stitch.css';
 import boot from './client.js';
 import createPortfolioTools from './portfolio.js';
 import createIntentTools from './intent.js';
@@ -75,10 +76,10 @@ export default {async fetch(request,env={}){
  const url=new URL(request.url);const path=url.pathname;
  try{
   if(request.method==='GET'&&path==='/')return new Response(HTML,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'}});
-  if(request.method==='GET'&&path==='/styles.css')return new Response(CSS+'\n'+WORKSPACE_CSS,{headers:{'Content-Type':'text/css; charset=utf-8'}});
+  if(request.method==='GET'&&path==='/styles.css')return new Response(CSS+'\n'+WORKSPACE_CSS+'\n'+STITCH_CSS,{headers:{'Content-Type':'text/css; charset=utf-8'}});
   if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')(('+createPortfolioTools.toString()+')(),('+createIntentTools.toString()+')(),('+createChartTools.toString()+')(),('+createTerminalTools.toString()+')());',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
   if(request.method==='GET'&&path==='/api/diligence')return json({lenses:LENSES,method:'A product interpretation of ENAM’s public investment approach, not its internal research system.',sources:[{title:'ENAM investment philosophy',url:'https://www.enam.com/investment-philosophy.html'},{title:'ENAM approach and governance',url:'https://www.enam.com/about-us.html'},{title:'ENAM culture and objectivity',url:'https://www.enam.com/culture.html'}]});
-  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.8.0',digest:{categories:CATEGORY_LABELS,defaultFocus:DEFAULT_FOCUS,windows:Object.keys(WINDOWS)}})}
+  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.9.0',digest:{categories:CATEGORY_LABELS,defaultFocus:DEFAULT_FOCUS,windows:Object.keys(WINDOWS)}})}
   if(request.method==='POST'&&path==='/api/command'){
    const body=await readJSON(request,12000),prompt=String(body.prompt||'').trim();
    if(prompt.length<3||prompt.length>1200)return json({error:'Enter a workspace request of 3–1,200 characters.'},400);

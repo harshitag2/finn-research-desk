@@ -127,7 +127,8 @@ test('Gemini receives only the document question and preserves legitimate guidan
     const r = await investigateWorkspace({ query: MIXED, tickers: ['INFY', 'TCS'], companies, corpus, env: { GEMINI_API_KEY: 'test-key' }, quoteProvider: provider([]) });
     assert.equal(questions.length, 1);
     assert.doesNotMatch(questions[0].question, /price|quote/i);
-    assert.deepEqual(questions[0].notes, [PRICE_NOTE]);
+    assert.ok(questions[0].notes.includes(PRICE_NOTE));
+    assert.ok(questions[0].notes.some(n => n.startsWith('Indexed document coverage:') && n.includes('2026-05-29')));
     assert.equal(r.mode, 'agent');
     assert.equal(r.findings.length, 2);
     assert.deepEqual(r.gaps, ['TCS does not provide numerical revenue growth guidance.']);

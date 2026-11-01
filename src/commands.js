@@ -121,5 +121,5 @@ export async function compareCompanies({query,tickers,corpus,env={},signal,notes
  if(missing.length)return {mode:'coverage',query,scope:tickers,summary:'This comparison needs sources for '+missing.join(', ')+'.',findings:[],evidence:[],trace:[{tool:'coverage_check',detail:'Comparison withheld because an issuer has no indexed documents.',ms:0}],gaps:['Add a report or transcript for every selected company before comparing.'],coverage:{status:'missing',tickers:missing,companies:coverage}};
  const initialEvidence=tickers.flatMap(ticker=>retrieve(scoped,{query,ticker,limit:3}));
  const result=await runResearch({query:'Compare '+tickers.join(' and ')+'. '+query,ticker:'',corpus:scoped,env,signal,initialEvidence,notes});
- return {...result,query,scope:tickers,coverage:{status:'available',companies:coverage}};
+ return {...result,query,scope:tickers,coverage:result.mode==='coverage'?result.coverage:{status:'available',companies:coverage}};
 }

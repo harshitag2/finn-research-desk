@@ -36,3 +36,7 @@ test('one prompt opens and controls the market terminal',()=>{
  assert.equal(parseCommand('Open market terminal').action,'terminal');assert.equal(parseCommand('Pause terminal feed').action,'pause');assert.equal(parseCommand('Resume terminal feed').action,'resume');
  const p=parseCommand('Open terminal for Infosys',{},[{ticker:'INFY',name:'Infosys'}]);assert.equal(p.view,'terminal');assert.deepEqual(p.tickers,['INFY']);
 });
+test('quote health distinguishes closed, delayed, failed refresh and unknown sessions',()=>{
+ const {quoteHealth}=createTerminalTools(),q={ticker:'INFY',price:105,asOf:new Date(now-1200000).toISOString(),marketState:'open'};
+ assert.equal(quoteHealth(q,now).state,'delayed');assert.equal(quoteHealth({...q,marketState:'closed'},now).state,'closed');assert.equal(quoteHealth({...q,stale:true},now).state,'cached');assert.equal(quoteHealth({...q,marketState:'unknown'},now).state,'unknown');assert.equal(quoteHealth({...q,asOf:new Date(now-1000).toISOString()},now).state,'recent');assert.equal(quoteHealth({...q,price:null},now).state,'unavailable');
+});

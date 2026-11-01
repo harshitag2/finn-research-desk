@@ -1,5 +1,6 @@
 // Retrieval and numeric tools are independent of any model provider.
 import {modelConfig} from './model-config.js';
+import {scopeResearchSources} from './source-scope.js';
 const ACTION_SCHEMA={type:'object',properties:{action:{type:'string',enum:['search_documents','read_passage','calculate_change','compare_guidance','finish']},args:{type:'object',properties:{query:{type:'string'},type:{type:'string'},period:{type:'string'},id:{type:'string'},current:{type:'number'},previous:{type:'number'},actual:{type:'number'},low:{type:'number'},high:{type:'number'},targetPeriod:{type:'string'},actualPeriod:{type:'string'},basis:{type:'string'},actualBasis:{type:'string'}},additionalProperties:false},summary:{type:'string'},findings:{type:'array',maxItems:7,items:{type:'object',properties:{text:{type:'string'},evidenceIds:{type:'array',items:{type:'string'}},stance:{type:'string',enum:['supports','challenges','unclear']}},required:['text','evidenceIds'],additionalProperties:false}},gaps:{type:'array',items:{type:'string'}}},required:['action'],additionalProperties:false};
 const STOP=new Set('a an the is are was were to of and in on for with how what why does did do its it has have company please tell me about from this that as at by we our be or management said say call earnings conference transcript cite cited source document financial limited'.split(' '));
 const EXPAND={guidance:['outlook','expect','expected','growth','margin'],cash:['cashflow','cash','conversion','operations','receivables'],debt:['borrowings','leverage','liabilities'],risk:['risks','headwinds','uncertainty'],margin:['profitability','operating','ebitda'],revenue:['sales','revenues','growth'],loan:['loans','credit','advances','lending'],deposit:['deposits','funding','casa']};
@@ -51,7 +52,15 @@ export function validateFindings(findings,evidence){
 export function evidenceFallback(query,evidence,trace,reason='No model provider connected.'){
  return {mode:'evidence',query,summary:evidence.length?'Relevant passages from company disclosures. Connect a model for a synthesized answer.':'No matching evidence found in the available documents.',findings:[],evidence,trace,gaps:[reason,...(!evidence.length?['Add a relevant annual report or transcript, or broaden your question.']:[])],generatedAt:new Date().toISOString()};
 }
-export async function runResearch({query,ticker,corpus,env={},signal,review=null,initialEvidence=null,notes=[]}){
+export async function runResearch(options){
+ const scoped=scopeResearchSources(options.corpus,{query:options.query,ticker:options.ticker});
+ if(scoped.missing.length){const period=scoped.coverage.requested;return {mode:'coverage',query:options.query,summary:'No indexed disclosure matches '+period+' for '+scoped.missing.join(', ')+'. Add the relevant company document to answer this question.',findings:[],evidence:[],trace:[{tool:'period_coverage',detail:'Requested disclosure is not indexed; model call skipped.',ms:0}],gaps:['Documents from a different period were not used as a substitute.'],coverage:{status:'period_missing',tickers:scoped.missing,requested:period},sourceCoverage:scoped.coverage,generatedAt:new Date().toISOString()}}
+ const initial=options.initialEvidence?.filter(e=>scoped.documentIds.has(e.documentId));
+ const notes=[...(options.notes||[]),'Indexed document coverage: '+JSON.stringify(scoped.coverage)+'. These documents do not establish statements made after their dates.'];
+ const result=await runScopedResearch({...options,corpus:scoped.corpus,initialEvidence:initial?.length?initial:null,notes});
+ return {...result,sourceCoverage:scoped.coverage};
+}
+async function runScopedResearch({query,ticker,corpus,env={},signal,review=null,initialEvidence=null,notes=[]}){
  const trace=[];const started=Date.now();
  const mark=(tool,detail)=>trace.push({tool,detail,ms:Date.now()-started});
  mark('scope',ticker?'Research scope: '+ticker:'Search across the available source library');

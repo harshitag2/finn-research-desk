@@ -13,6 +13,16 @@ if(origin===DEFAULT_ORIGIN&&!input.token)throw new Error('A private-site service
 const redact=text=>input.token?String(text).split(input.token).join('[redacted]'):String(text);
 async function call(path,body){const response=await fetch(origin+path,{headers:{...(input.token?{'OAI-Sites-Authorization':'Bearer '+input.token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{method:'POST',body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(50000)});if(!response.ok)throw new Error(path+' returned HTTP '+response.status);return response.json()}
 async function verify(){try{
+ if(input.mode==='release'){
+  const [library,quotes,missing]=await Promise.all([call('/api/library'),call('/api/quotes?tickers=INFY,TCS,HDFCBANK'),call('/api/research',{ticker:'INFY',query:'What did management say in the Q2 FY27 earnings call?'})]);
+  console.log(JSON.stringify({check:'release',version:library.version,providerConfigured:library.providerConfigured,refreshSeconds:quotes.refreshSeconds,quotes:quotes.quotes.map(({ticker,price,asOf,marketState,quoteHealth})=>({ticker,price,asOf,marketState,quoteHealth})),periodGate:{mode:missing.mode,status:missing.coverage?.status,findings:missing.findings?.length,modelSkipped:!missing.trace?.some(t=>t.tool==='model_step')}}));
+  if(quotes.refreshSeconds!==15||quotes.quotes.some(q=>!Number.isFinite(q.price)||!q.quoteHealth)||missing.coverage?.status!=='period_missing'||missing.findings?.length||missing.trace?.some(t=>t.tool==='model_step'))process.exitCode=1;
+  const latest=await call('/api/research',{ticker:'INFY',query:'What revenue guidance did management give in the latest earnings call?'});
+  const ids=new Set(latest.evidence?.map(e=>e.id)),cited=latest.findings?.length&&latest.findings.every(f=>f.evidenceIds?.length&&f.evidenceIds.every(id=>ids.has(id))),docs=[...new Set(latest.evidence?.map(e=>e.documentId))];
+  console.log(JSON.stringify({check:'latest_transcript',mode:latest.mode,citationsValid:Boolean(cited),findings:latest.findings?.length,documents:docs,coverage:latest.sourceCoverage,gaps:latest.gaps}));
+  if(latest.mode!=='agent'||!cited||docs.length!==1||docs[0]!=='infy-q4-fy26')process.exitCode=1;
+  return;
+ }
  if(input.mode==='terminal'){
   const library=await call('/api/library');
   const r=await call('/api/terminal/quotes?tickers=INFY,TCS,HDFCBANK&source=auto');

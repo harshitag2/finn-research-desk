@@ -15,7 +15,7 @@ test('invalid quote metadata is rejected and a missing comparison base stays unk
 });
 test('portfolio quotes return partial failures and deduplicate tickers',async()=>{
  let calls=0;const fetcher=async url=>{calls++;const symbol=decodeURIComponent(new URL(url).pathname.split('/').at(-1)).replace(/\.NS$/,'');return symbol==='FAILCO'?new Response('unavailable',{status:503}):Response.json(fixture(symbol))};
- const result=await fetchQuotes(['MULTIA','MULTIB','MULTIA','FAILCO'],{fetcher,now});assert.equal(calls,3);assert.equal(result.quotes.length,3);assert.equal(result.quotes[0].price,105);assert.equal(result.quotes[2].price,null);assert.match(result.notice,/may be delayed/);assert.equal(result.refreshSeconds,60);
+ const result=await fetchQuotes(['MULTIA','MULTIB','MULTIA','FAILCO'],{fetcher,now});assert.equal(calls,3);assert.equal(result.quotes.length,3);assert.equal(result.quotes[0].price,105);assert.equal(result.quotes[2].price,null);assert.match(result.notice,/may be delayed/);assert.equal(result.refreshSeconds,15);
 });
 test('a failed refresh keeps a clearly marked last successful quote',async()=>{
  const first=await latestQuote('STALECO',{fetcher:async()=>Response.json(fixture('STALECO')),now});assert.equal(first.stale,false);
@@ -32,4 +32,15 @@ test("network and timeout failures are explained without inventing a price", asy
   const slow = await latestQuote("SLOWCO", { fetcher: async () => { throw Object.assign(new Error("t"), { name: "TimeoutError" }); }, now });
   assert.equal(slow.price, null);
   assert.match(slow.error, /timed out/);
+});
+test('a provider timestamp regression retains the newer cached quote and explains the rejection',async()=>{
+ const first=await latestQuote('TIMEREGRESS',{now,fetcher:async()=>Response.json(fixture('TIMEREGRESS'))});
+ const older=await latestQuote('TIMEREGRESS',{now:now+16000,fetcher:async()=>Response.json(fixture('TIMEREGRESS',{regularMarketTime:now/1000-600,regularMarketPrice:90}))});
+ assert.equal(older.price,first.price);assert.equal(older.asOf,first.asOf);assert.equal(older.stale,true);assert.equal(older.quoteHealth.state,'cached');assert.match(older.error,/Older provider snapshot ignored/);
+});
+test('the shared quote cache expires after 15 seconds and reports a delayed open-session tick',async()=>{
+ let calls=0;const fetcher=async()=>{calls++;return Response.json(fixture('AGECHECK',{regularMarketTime:now/1000-1200}))};
+ const first=await latestQuote('AGECHECK',{now,fetcher});assert.equal(first.quoteHealth.state,'delayed');
+ await latestQuote('AGECHECK',{now:now+14000,fetcher});assert.equal(calls,1);
+ await latestQuote('AGECHECK',{now:now+16000,fetcher});assert.equal(calls,2);
 });

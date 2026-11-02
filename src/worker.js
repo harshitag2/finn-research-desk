@@ -115,6 +115,7 @@ export default {async fetch(request,env={}){
    const body=await readJSON(request),prompt=String(body.prompt||'Give me a deep analysis of my portfolio').trim().slice(0,1200);
    const raw=Array.isArray(body.holdings)&&body.holdings.length?body.holdings:PORTFOLIO.map(c=>({...c,weight:1}));
    const holdings=[];
+   if(raw.some(h=>h.assetType&&!['Stocks','ETFs'].includes(h.assetType)))return json({error:'Price-history analysis supports listed Stocks and ETFs only. Use snapshot allocation for other asset classes.'},400);
    for(const h of raw.slice(0,30)){const ticker=cleanTicker(h.ticker),weight=Number(h.weight??h.marketValue??1);if(!validTicker(ticker)||!Number.isFinite(weight)||weight<0)return json({error:'Holdings need valid NSE tickers and non-negative weights or market values.'},400);if(weight>0&&!holdings.some(x=>x.ticker===ticker))holdings.push({ticker,weight,name:String(h.name||PORTFOLIO.find(c=>c.ticker===ticker)?.name||ticker).slice(0,80),sector:String(h.sector||PORTFOLIO.find(c=>c.ticker===ticker)?.sector||'Unclassified').slice(0,40)})}
    if(!holdings.length)return json({error:'Add at least one holding with a positive weight.'},400);
    const prefs={priceThreshold:Math.min(50,Math.max(0.1,Number(body.prefs?.priceThreshold)||4)),volumeThreshold:Math.min(20,Math.max(1,Number(body.prefs?.volumeThreshold)||2))};

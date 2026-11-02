@@ -29,6 +29,11 @@ globalThis.fetch = async (input, options) => {
 };
 const call = (path, body) => worker.fetch(new Request('https://finn.test' + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}), {}, {});
 
+test('/api/analyze rejects nonlisted asset classes before requesting stock history',async()=>{
+ const before=seen.length,response=await call('/api/analyze',{holdings:[{ticker:'120503',assetType:'Mutual Funds',marketValue:100000}]});
+ assert.equal(response.status,400);assert.match((await response.json()).error,/snapshot allocation/);assert.equal(seen.length,before);
+});
+
 test('/api/analyze runs the deep dive on the illustrative watchlist by default', async () => {
   const r = await (await call('/api/analyze', { prompt: 'How risky is my portfolio?' })).json();
   assert.equal(r.mode, 'analysis');

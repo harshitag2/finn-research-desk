@@ -11,8 +11,17 @@ const DEFAULT_ORIGIN='https://finn-research-desk.ayush2111319.chatgpt.site';
 const origin=input.origin?new URL(input.origin).origin:DEFAULT_ORIGIN;
 if(origin===DEFAULT_ORIGIN&&!input.token)throw new Error('A private-site service credential is required.');
 const redact=text=>input.token?String(text).split(input.token).join('[redacted]'):String(text);
-async function call(path,body){const response=await fetch(origin+path,{headers:{...(input.token?{'OAI-Sites-Authorization':'Bearer '+input.token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{method:'POST',body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(input.mode==='agent'?110000:50000)});if(!response.ok)throw new Error(path+' returned HTTP '+response.status);return response.json()}
+async function call(path,body){const response=await fetch(origin+path,{headers:{...(input.token?{'OAI-Sites-Authorization':'Bearer '+input.token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{method:'POST',body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(['agent','standout'].includes(input.mode)?110000:50000)});if(!response.ok)throw new Error(path+' returned HTTP '+response.status);return response.json()}
 async function verify(){try{
+ if(input.mode==='standout'){
+  const lib=await call('/api/library');console.log(JSON.stringify({check:'release',version:lib.version,configured:lib.providerConfigured}));
+  const checks=await Promise.allSettled([
+   call('/api/workbench/commitments',{ticker:'INFY'}),call('/api/workbench/commitments',{ticker:'HCLTECH'}),call('/api/workbench/cash',{ticker:'INFY'}),call('/api/management-background',{ticker:'HDFCBANK'}),call('/api/sources/discover?ticker=COFORGE')
+  ]);
+  for(let i=0;i<checks.length;i++){const x=checks[i],name=['INFY_commitments','HCLTECH_commitments','INFY_cash','management','unseen_discovery'][i];if(x.status==='rejected'){console.log(JSON.stringify({check:name,error:x.reason.message}));process.exitCode=1;continue}const r=x.value;console.log(JSON.stringify({check:name,mode:r.mode,status:r.status,rows:r.rows,records:r.records?.length,facts:r.facts,evidence:r.evidence?.length,gaps:r.gaps,links:r.links?.slice(0,3),failures:r.failures}));if(i<3&&(!r.rows?.length||r.mode!=='agent'))process.exitCode=1;if(i===4&&!r.links?.length)process.exitCode=1}
+  const scan=await call('/api/monitor/run',{}),inbox=await call('/api/monitor/inbox');console.log(JSON.stringify({check:'persistent_scan',scan,configured:inbox.configured,events:inbox.events?.length,lastRun:inbox.lastRun,schedule:inbox.schedule}));if(!inbox.lastRun)process.exitCode=1;
+  return;
+ }
  if(input.mode==='agent'){
   const r=await call('/api/compare',{tickers:['INFY','TCS'],query:'compare infy and tcs in detail'});
   const ids=new Set(r.evidence?.map(e=>e.id)),valid=r.findings?.length&&r.findings.every(f=>f.evidenceIds?.length&&f.evidenceIds.every(id=>ids.has(id)));

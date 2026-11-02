@@ -7,3 +7,5 @@ data/raw/
 *.tar.gz
 .sites-workflow/
 test-results/
+
+.local/

@@ -3,7 +3,10 @@ import CSS from './styles.css';
 import WORKSPACE_CSS from './workspace.css';
 import STITCH_CSS from './stitch.css';
 import REFINEMENTS_CSS from './refinements.css';
+import WORKBENCH_CSS from './workbench.css';
 import boot from './client.js';
+import createWorkbenchUI from './workbench-ui.js';
+import {handleWorkbench,workbenchCommand} from './workbench-api.js';
 import createWorkspaceActions from './workspace-actions.js';
 import createPortfolioTools from './portfolio.js';
 import createIntentTools from './intent.js';
@@ -77,15 +80,17 @@ async function announcements(ticker){
 export default {async fetch(request,env={}){
  const url=new URL(request.url);const path=url.pathname;
  try{
+  const workbench=await handleWorkbench(request,env,{corpus,combine,portfolio:PORTFOLIO});if(workbench)return workbench;
   if(request.method==='GET'&&path==='/')return new Response(HTML,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'}});
-  if(request.method==='GET'&&path==='/styles.css')return new Response(CSS+'\n'+WORKSPACE_CSS+'\n'+STITCH_CSS+'\n'+REFINEMENTS_CSS,{headers:{'Content-Type':'text/css; charset=utf-8'}});
-  if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')(('+createPortfolioTools.toString()+')(),('+createIntentTools.toString()+')(),('+createChartTools.toString()+')(),('+createTerminalTools.toString()+')(),('+createWorkspaceActions.toString()+')());',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
+  if(request.method==='GET'&&path==='/styles.css')return new Response(CSS+'\n'+WORKSPACE_CSS+'\n'+STITCH_CSS+'\n'+REFINEMENTS_CSS+'\n'+WORKBENCH_CSS,{headers:{'Content-Type':'text/css; charset=utf-8'}});
+  if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')(('+createPortfolioTools.toString()+')(),('+createIntentTools.toString()+')(),('+createChartTools.toString()+')(),('+createTerminalTools.toString()+')(),('+createWorkspaceActions.toString()+')(),('+createWorkbenchUI.toString()+')());',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
   if(request.method==='GET'&&path==='/api/diligence')return json({lenses:LENSES,method:'A product interpretation of ENAM’s public investment approach, not its internal research system.',sources:[{title:'ENAM investment philosophy',url:'https://www.enam.com/investment-philosophy.html'},{title:'ENAM approach and governance',url:'https://www.enam.com/about-us.html'},{title:'ENAM culture and objectivity',url:'https://www.enam.com/culture.html'}]});
-  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.11.1',digest:{categories:CATEGORY_LABELS,defaultFocus:DEFAULT_FOCUS,windows:Object.keys(WINDOWS)}})}
+  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.12.0',digest:{categories:CATEGORY_LABELS,defaultFocus:DEFAULT_FOCUS,windows:Object.keys(WINDOWS)}})}
   if(request.method==='POST'&&path==='/api/command'){
    const body=await readJSON(request,12000),prompt=String(body.prompt||'').trim();
    if(prompt.length<3||prompt.length>1200)return json({error:'Enter a workspace request of 3–1,200 characters.'},400);
    const context={ticker:cleanTicker(body.context?.ticker),tickers:(Array.isArray(body.context?.tickers)?body.context.tickers:[]).map(cleanTicker).filter(validTicker).slice(0,3),previousQuery:String(body.context?.previousQuery||'').slice(0,1200),view:['briefing','research','portfolio','library','thesis','saved','analysis','markets','stock','terminal'].includes(body.context?.view)?body.context.view:''};
+   const workbenchPlan=workbenchCommand(prompt,context,PORTFOLIO);if(workbenchPlan)return json(workbenchPlan);
    return json(await planCommand({prompt,context,companies:PORTFOLIO,env}));
   }
   if(request.method==='POST'&&path==='/api/compare'){

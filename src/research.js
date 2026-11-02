@@ -4,7 +4,7 @@ import {scopeResearchSources} from './source-scope.js';
 import {researchDepth,expandedEvidence,detailQuality,reportSections} from './research-depth.js';
 const ACTION_SCHEMA={type:'object',properties:{action:{type:'string',enum:['search_documents','read_passage','calculate_change','compare_guidance','finish']},args:{type:'object',properties:{query:{type:'string'},type:{type:'string'},period:{type:'string'},id:{type:'string'},current:{type:'number'},previous:{type:'number'},actual:{type:'number'},low:{type:'number'},high:{type:'number'},targetPeriod:{type:'string'},actualPeriod:{type:'string'},basis:{type:'string'},actualBasis:{type:'string'}},additionalProperties:false},summary:{type:'string'},findings:{type:'array',maxItems:18,items:{type:'object',properties:{section:{type:'string',enum:['business','growth','profitability','capital','outlook']},text:{type:'string'},evidenceIds:{type:'array',items:{type:'string'}},stance:{type:'string',enum:['supports','challenges','unclear']}},required:['text','evidenceIds'],additionalProperties:false}},gaps:{type:'array',items:{type:'string'}}},required:['action'],additionalProperties:false};
 const STOP=new Set('a an the is are was were to of and in on for with how what why does did do its it has have company please tell me about from this that as at by we our be or management said say call earnings conference transcript cite cited source document financial limited'.split(' '));
-const EXPAND={guidance:['outlook','expect','expected','growth','margin'],cash:['cashflow','cash','conversion','operations','receivables'],debt:['borrowings','leverage','liabilities'],risk:['risks','headwinds','uncertainty'],margin:['profitability','operating','ebitda'],revenue:['sales','revenues','growth'],loan:['loans','credit','advances','lending'],deposit:['deposits','funding','casa']};
+const EXPAND={guide:['guidance','outlook'],guided:['guidance','outlook'],guidance:['outlook','expect','expected','growth','margin'],cash:['cashflow','cash','conversion','operations','receivables'],debt:['borrowings','leverage','liabilities'],risk:['risks','headwinds','uncertainty'],margin:['profitability','operating','ebitda'],revenue:['sales','revenues','growth'],loan:['loans','credit','advances','lending'],deposit:['deposits','funding','casa']};
 export const tokens=text=>(String(text).toLowerCase().match(/[a-z0-9]+/g)||[]).filter(t=>t.length>1&&!STOP.has(t));
 export function retrieve(corpus,{query,ticker='',limit=6,type='',period=''}={}){
  const docs=new Map(corpus.documents.map(d=>[d.id,d]));
@@ -16,6 +16,7 @@ export function retrieve(corpus,{query,ticker='',limit=6,type='',period=''}={}){
  const pool=corpus.chunks.filter(c=>(!ticker||c.ticker===ticker)&&(!type||docs.get(c.documentId)?.type===type)&&(!period||docs.get(c.documentId)?.period===period)&&(!exactDate||docs.get(c.documentId)?.date===exactDate));
  if(!pool.length)return [];
  const raw=[...new Set(tokens(exactDate?String(query).replace(dateMention[0],''):query))];
+ const guidanceQuestion=/\bguid(?:e|ed|ance|ing)\b/i.test(query);
  const terms=[...new Set([...raw,...raw.flatMap(t=>EXPAND[t]||[])])];
  if(!terms.length)return [];
  const bag=pool.map(c=>tokens(c.text));const avg=bag.reduce((a,b)=>a+b.length,0)/pool.length||1;
@@ -24,6 +25,17 @@ export function retrieve(corpus,{query,ticker='',limit=6,type='',period=''}={}){
   let score=0;for(const t of terms){const tf=bag[i].filter(w=>w===t).length;if(!tf)continue;
    const idf=Math.log(1+(pool.length-(df.get(t)||0)+0.5)/((df.get(t)||0)+0.5));
    score+=idf*(tf*2.2)/(tf+1.2*(0.25+0.75*bag[i].length/avg))*(raw.includes(t)?1:0.35);
+  }
+  // Bounded lexical rerank: explicit management guidance declarations should not lose to
+  // participant lists or repeated disclosure-quarter tokens. These are retrieval cues,
+  // not an assertion that every matching sentence is attributable or financially comparable.
+  if(guidanceQuestion&&score>0){
+   const text=c.text.replace(/\s+/g,' ');
+   const declaration=/\bour\s+(?:(?:revenue|growth|margin|full.year|financial.year)\s+){0,4}guidance\b|\bwe\s+(?:maintain|revise|revised|raise|raised|retain|guide|guided|expect)\b.{0,100}\b(?:guidance|growth|margin)\b/i.test(text);
+   const range=/\d+(?:\.\d+)?\s*%?\s*(?:to|–|-)\s*\d+(?:\.\d+)?\s*%/.test(text);
+   const noGuidance=/\bwe\s+(?:do not|don't)\s+provide\b.{0,80}\bguidance\b/i.test(text.normalize('NFKC'));
+   if(declaration&&range||noGuidance)score+=4;
+   if(/\b(?:corporate participants|analyst participants|conference call participants)\s*:/i.test(text))score*=0.12;
   }
   return {...c,score:Number(score.toFixed(3)),document:docs.get(c.documentId)};
  }).filter(c=>c.score>0).sort((a,b)=>b.score-a.score);

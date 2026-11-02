@@ -33,7 +33,7 @@ test('only real price differences animate; failures preserve cached values and o
  assert.equal(tools.sortedRows(['INFY','TCS'],{INFY:{...old,name:'Infosys'},TCS:{ticker:'TCS',price:110}},{query:'infosys'})[0].ticker,'INFY');
 });
 test('one prompt opens and controls the market terminal',()=>{
- assert.equal(parseCommand('Open market terminal').action,'terminal');assert.equal(parseCommand('Pause terminal feed').action,'pause');assert.equal(parseCommand('Resume terminal feed').action,'resume');
+ assert.equal(parseCommand('Open market terminal').action,'terminal');assert.equal(parseCommand('Pause terminal feed',{view:'terminal'}).workspace.operations[0].value,false);assert.equal(parseCommand('Resume terminal feed',{view:'terminal'}).workspace.operations[0].value,true);
  const p=parseCommand('Open terminal for Infosys',{},[{ticker:'INFY',name:'Infosys'}]);assert.equal(p.view,'terminal');assert.deepEqual(p.tickers,['INFY']);
 });
 test('quote health distinguishes closed, delayed, failed refresh and unknown sessions',()=>{

@@ -97,7 +97,7 @@ test('planner routes mixed, price-only and follow-up requests with the selected 
   const pricing = parseCommand('What does HDFC Bank management say about pricing power?', {}, companies);
   assert.equal(pricing.action, 'research');
   assert.equal(pricing.includePrices, false);
-  assert.equal(parseCommand('Pause price auto refresh', {}, companies).action, 'pause');
+  assert.equal(parseCommand('Pause price auto refresh', {}, companies).workspace.operations[0].value, false);
 });
 
 test('an unrecognised company in a price request asks for a symbol instead of quoting the current company', async () => {

@@ -1,6 +1,6 @@
 # FINN — The research desk
 
-Current integrated version: **0.7.1**. Claude’s 0.7.0 handoff was verified and continued with Windows verifier and model-number validation fixes; 128 automated tests pass. See [the import review](docs/claude-import-review.md) and [verification record](docs/claude-import-verification.json).
+Current integrated version: **0.11.0**. Detailed research now retrieves by topic and issuer, produces sectioned cited reports, and requests one revision when the first draft is too shallow. The command bar applies validated preferences, display options, terminal controls, chart periods and screener resets. 151 automated tests pass. See [the agent controls and research update](docs/agent-controls.md).
 
 An investment workspace controlled from one natural-language command bar. A graphite navigation rail, source-backed guidance visualization, market tape, comparison canvas and page-level evidence inspector support the research workflow.
 

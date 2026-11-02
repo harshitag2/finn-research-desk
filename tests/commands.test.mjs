@@ -13,7 +13,7 @@ test('follow-up research keeps current context while navigation and market contr
  assert.deepEqual(parseCommand('What did management say about margins?',{ticker:'HDFCBANK'},companies).tickers,['HDFCBANK']);
  assert.equal(parseCommand('Open my portfolio',{},companies).view,'portfolio');
  assert.equal(parseCommand('Show prices for Reliance and HDFC Bank',{},companies).action,'prices');
- assert.equal(parseCommand('Pause price auto refresh',{},companies).action,'pause');
+ assert.deepEqual(parseCommand('Pause price auto refresh',{},companies).workspace.operations,[{type:'auto_refresh',value:false,view:'briefing'}]);
  assert.equal(parseCommand('Export this research note',{},companies).action,'export');
  assert.equal(parseCommand('Compare Infosys',{ticker:'TCS'},companies).action,'clarify');
 });

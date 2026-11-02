@@ -11,8 +11,20 @@ const DEFAULT_ORIGIN='https://finn-research-desk.ayush2111319.chatgpt.site';
 const origin=input.origin?new URL(input.origin).origin:DEFAULT_ORIGIN;
 if(origin===DEFAULT_ORIGIN&&!input.token)throw new Error('A private-site service credential is required.');
 const redact=text=>input.token?String(text).split(input.token).join('[redacted]'):String(text);
-async function call(path,body){const response=await fetch(origin+path,{headers:{...(input.token?{'OAI-Sites-Authorization':'Bearer '+input.token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{method:'POST',body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(50000)});if(!response.ok)throw new Error(path+' returned HTTP '+response.status);return response.json()}
+async function call(path,body){const response=await fetch(origin+path,{headers:{...(input.token?{'OAI-Sites-Authorization':'Bearer '+input.token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{method:'POST',body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(input.mode==='agent'?110000:50000)});if(!response.ok)throw new Error(path+' returned HTTP '+response.status);return response.json()}
 async function verify(){try{
+ if(input.mode==='agent'){
+  const r=await call('/api/compare',{tickers:['INFY','TCS'],query:'compare infy and tcs in detail'});
+  const ids=new Set(r.evidence?.map(e=>e.id)),valid=r.findings?.length&&r.findings.every(f=>f.evidenceIds?.length&&f.evidenceIds.every(id=>ids.has(id)));
+  const text=r.findings?.map(f=>f.text).join(' ')||'',sections=r.sections?.filter(s=>s.indexes?.length).length||0;
+  console.log(JSON.stringify({check:'detailed_comparison',mode:r.mode,depth:r.depth,status:r.depthStatus,findings:r.findings?.length,sections,words:text.split(/\s+/).length,characters:text.length,citationsValid:Boolean(valid),issuers:[...new Set(r.evidence?.map(e=>e.ticker))],gaps:r.gaps,firstFinding:r.findings?.[0],trace:r.trace?.map(t=>t.tool)}));
+  if(r.mode!=='agent'||r.depth!=='detailed'||!valid||r.findings.length<8||sections<4||text.length<2400)process.exitCode=1;
+  const plan=await call('/api/command',{prompt:'Set price alert to 5% and volume alert to 3x and use compact layout',context:{view:'research'}});
+  const invalid=await call('/api/command',{prompt:'Set price alert to 500%',context:{view:'research'}});
+  console.log(JSON.stringify({check:'workspace_commands',plan,invalid}));
+  if(plan.action!=='workspace'||plan.workspace?.operations?.length!==3||invalid.action!=='clarify')process.exitCode=1;
+  return;
+ }
  if(input.mode==='release'){
   const [library,quotes,missing]=await Promise.all([call('/api/library'),call('/api/quotes?tickers=INFY,TCS,HDFCBANK'),call('/api/research',{ticker:'INFY',query:'What did management say in the Q2 FY27 earnings call?'})]);
   console.log(JSON.stringify({check:'release',version:library.version,providerConfigured:library.providerConfigured,refreshSeconds:quotes.refreshSeconds,quotes:quotes.quotes.map(({ticker,price,asOf,marketState,quoteHealth})=>({ticker,price,asOf,marketState,quoteHealth})),periodGate:{mode:missing.mode,status:missing.coverage?.status,findings:missing.findings?.length,modelSkipped:!missing.trace?.some(t=>t.tool==='model_step')}}));

@@ -140,6 +140,15 @@ export async function modelJSON(messages,env,signal,onRetry,schema=ACTION_SCHEMA
   try{await response.body?.cancel()}catch{}
   await new Promise(resolve=>setTimeout(resolve,Math.max(500,retryAfter*1000)));
  }
+ if(provider==='gemini'&&response.status===400&&options.schemaFallback===true&&schema!==ACTION_SCHEMA){
+  // Some Gemini deployments reject larger constrained extraction schemas. JSON mode remains
+  // bounded by the same deadline; callers still apply exact quote/number/issuer validation.
+  try{await response.body?.cancel()}catch{}
+  onRetry?.('The provider rejected the constrained extraction schema; retrying once in JSON mode. Source validation is unchanged.');
+  const fallback=structuredClone(body);delete fallback.generationConfig.responseJsonSchema;
+  fallback.systemInstruction.parts[0].text+=' Return only a JSON object matching this shape: '+JSON.stringify(schema);
+  response=await fetch(url,{method:'POST',headers,body:JSON.stringify(fallback),signal:deadline});
+ }
  const data=await response.json();if(!response.ok){const error=new Error('Provider HTTP '+response.status);error.status=response.status;error.safeDetail=String(data.error?.message||'').split(config.key).join('[redacted]').slice(0,220);throw error}
  let text=provider==='gemini'?data.candidates?.[0]?.content?.parts?.filter(p=>!p.thought).map(p=>p.text||'').join(''):provider==='ollama'?data.message?.content:data.choices?.[0]?.message?.content;
  text=String(text||'').replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'');return JSON.parse(text);

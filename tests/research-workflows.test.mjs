@@ -52,7 +52,7 @@ test('real indexed issuers have isolated evidence states without requiring a key
 test('model extraction is validated and cached by changed source content, not ticker alone',async()=>{
  const previous=globalThis.fetch;let calls=0;
  const corpus={documents:[p.document,a.document],chunks:[p,a]};
- globalThis.fetch=async()=>{calls++;return Response.json({candidates:[{content:{parts:[{text:JSON.stringify({records:[record(p),record(a,'actual')],gaps:[]})}]}}]})};
+ globalThis.fetch=async(url,options)=>{calls++;const body=JSON.parse(options.body);assert.equal(body.generationConfig.responseJsonSchema.properties.records.maxItems,16);return Response.json({candidates:[{content:{parts:[{text:JSON.stringify({records:[record(p),record(a,'actual')],gaps:[]})}]}}]})};
  try{
   const env={GEMINI_API_KEY:'test-key',FINN_MODEL:'test-ledger'};
   const one=await buildCommitments({ticker:'TEST',corpus,env});assert.equal(one.mode,'agent');assert.equal(one.records.length,2);assert.equal(one.rows[0].status,'above');
@@ -62,7 +62,7 @@ test('model extraction is validated and cached by changed source content, not ti
 });
 test('cash model output passes through exact source validation and deterministic calculation',async()=>{
  const previous=globalThis.fetch;
- globalThis.fetch=async()=>Response.json({candidates:[{content:{parts:[{text:JSON.stringify({facts:rawCash,gaps:[]})}]}}]});
+ globalThis.fetch=async(url,options)=>{const body=JSON.parse(options.body);assert.equal(body.generationConfig.responseJsonSchema.properties.facts.maxItems,16);return Response.json({candidates:[{content:{parts:[{text:JSON.stringify({facts:rawCash,gaps:[]})}]}}]})};
  try{const r=await buildCashQuality({ticker:'TEST',corpus:{documents:[c.document],chunks:[c]},env:{GEMINI_API_KEY:'test-key',FINN_MODEL:'test-cash'}});assert.equal(r.mode,'agent');assert.equal(r.facts.length,3);assert.equal(r.rows[0].freeCashFlow,90)}finally{globalThis.fetch=previous}
 });
 test('provider rejection remains diagnosable without leaking credentials or raw errors',async()=>{
@@ -71,7 +71,7 @@ test('provider rejection remains diagnosable without leaking credentials or raw 
  try{
   for(const run of [buildCommitments,buildCashQuality]){
    const r=await run({ticker:'TEST',corpus:{documents:[c.document],chunks:[c]},env:{GEMINI_API_KEY:secret,FINN_MODEL:'failure-diagnostic'}});
-   assert.equal(r.mode,'evidence');assert.equal(r.trace[0].status,400);assert.match(r.trace[0].safeDetail,/Invalid schema/);assert.ok(!JSON.stringify(r).includes(secret));
+   assert.equal(r.mode,'evidence');const failure=r.trace.find(t=>t.tool==='extraction_error');assert.equal(failure.status,400);assert.match(failure.safeDetail,/Invalid schema/);assert.ok(!JSON.stringify(r).includes(secret));
   }
  }finally{globalThis.fetch=previous}
 });

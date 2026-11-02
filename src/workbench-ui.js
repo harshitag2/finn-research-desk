@@ -32,5 +32,14 @@ export default function createWorkbenchUI(){
  }
 
  function management(r){return `<p>${esc(r.ticker)} · ${r.source?link(r.source.url,r.source.title||'Management filing'):'No verified management-change filing located'}</p>${r.facts?.map(f=>`<div class="wb-bio-fact"><b>${esc(basis(f.field))} · ${esc(f.personType)}</b><p>${esc(f.value)}</p><blockquote>${esc(f.quote)}</blockquote><small>Source page ${Number(f.page)}</small></div>`).join('')||'<p>Structured person details are not available in this result. Read the original filing excerpts below; missing extraction is not proof that the filing contains no biography.</p>'}${gaps(r)}${evidence(r)}<p class="micro-note">Professional background enrichment is separate from the company research corpus. No career history is inferred from a name alone.</p>`}
- return {desk,inbox,discovery,management};
+ function questions(ticker,documents=[]){
+  const calls=documents.filter(d=>d.ticker===ticker&&d.type==='transcript'),last=[...calls].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))[0];
+  const years=new Map();for(const d of calls){const m=String(d.period).match(/^Q([1-4])\s+FY(\d{2}|20\d{2})$/);if(m){const fy='FY'+m[2].slice(-2);if(!years.has(fy))years.set(fy,new Set());years.get(fy).add(m[1])}}
+  const fullYear=[...years].filter(([,quarters])=>quarters.size===4).map(([fy])=>fy).sort().at(-1);
+  const period=last?.period?' in the '+last.period+' transcript':' in the indexed disclosures';
+  if(/BANK/.test(ticker))return ['What did '+ticker+' management say about loan and deposit growth'+period+'?','How did net interest margins and funding costs change'+period+'?','What asset-quality risks does management identify'+period+'?'];
+  if(!fullYear)return ['Does '+ticker+' give numerical guidance'+period+'? Separate targets from qualitative outlook.','What did '+ticker+' management say about demand, deal wins and risks'+period+'?','What do reported revenue growth, margins and cash generation show'+period+'?'];
+  return ['How did revenue growth guidance change through '+fullYear+'?','Do accounting profits turn into operating cash flow?','What risks and headwinds does management identify?'];
+ }
+ return {desk,inbox,discovery,management,questions};
 }

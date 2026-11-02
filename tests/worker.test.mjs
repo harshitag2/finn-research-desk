@@ -33,9 +33,6 @@ test('invalid PDFs fail clearly rather than producing invented text',async()=>{
  const body=new FormData();body.set('ticker','INFY');body.set('file',new Blob(['not a PDF'],{type:'application/pdf'}),'fake.pdf');const response=await call('/api/ingest',{method:'POST',body});assert.equal(response.status,400);assert.match((await response.json()).error,/not a PDF/);
 });
 test('real company PDF import preserves page attribution',async t=>{
- const report=JSON.parse(fs.readFileSync('data/ingestion-report.json','utf8'));
- const candidates=fs.readdirSync('data/raw').filter(f=>f.endsWith('.pdf'));
- const raw=candidates.find(f=>/hcl/i.test(f));if(!raw){t.skip('Raw source PDFs are not committed; run ingestion to exercise this integration check.');return}
- const body=new FormData();body.set('ticker','HCLTECH');body.set('period','Q4 FY26');body.set('date','2026-04-21');body.set('type','transcript');body.set('file',new Blob([fs.readFileSync('data/raw/'+raw)],{type:'application/pdf'}),'hcl-call.pdf');
+ const body=new FormData();body.set('ticker','HCLTECH');body.set('period','Q4 FY26');body.set('date','2026-04-21');body.set('type','transcript');body.set('file',new Blob([fs.readFileSync(new URL('./fixtures/hcl-q4-fy26.pdf',import.meta.url))],{type:'application/pdf'}),'hcl-call.pdf');
  const response=await call('/api/ingest',{method:'POST',body});const result=await response.json();assert.equal(response.status,200,result.error);assert.equal(result.document.pages,24);assert.ok(result.chunks.length>20);assert.ok(result.chunks.every(c=>c.page>=1&&c.page<=24&&c.ticker==='HCLTECH'));
 });

@@ -41,8 +41,8 @@ test('management enrichment is linked to a real issuer-scoped filing selection a
  await assert.rejects(enrichManagement({ticker,url:'https://nsearchives.nseindia.com/corporate/other.pdf',announcementFetcher:async()=>[fixture]}),/No matching/);
 });
 test('real HCL transcript primary-source import retains PDF page attribution and checksum',async t=>{
- const raw=fs.readdirSync('data/raw').find(f=>/hcl.*\.pdf$/i.test(f));if(!raw){t.skip('Raw primary PDFs unavailable');return}
+ const raw=new URL('./fixtures/hcl-q4-fy26.pdf',import.meta.url);
  const full=JSON.parse(fs.readFileSync('data/corpus.json','utf8'));const c={documents:full.documents.filter(d=>d.ticker==='HCLTECH'),chunks:[]};
  const r=await discoverSources({ticker:'HCLTECH',corpus:c,force:true,fetcher:async()=>new Response('',{status:403})});assert.ok(r.links.length);
- const doc=await ingestDiscovered({ticker:'HCLTECH',id:r.links[0].id,corpus:c,fetcher:async()=>new Response(fs.readFileSync('data/raw/'+raw))});assert.notEqual(doc.document.sha256,'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');assert.equal(doc.document.pages,24);assert.ok(doc.chunks.some(c=>c.page===24));assert.ok(doc.document.identityVerified);
+ const doc=await ingestDiscovered({ticker:'HCLTECH',id:r.links[0].id,corpus:c,fetcher:async()=>new Response(fs.readFileSync(raw))});assert.notEqual(doc.document.sha256,'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');assert.equal(doc.document.pages,24);assert.ok(doc.chunks.some(c=>c.page===24));assert.ok(doc.document.identityVerified);
 });

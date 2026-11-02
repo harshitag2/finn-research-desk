@@ -171,19 +171,27 @@ export default {async fetch(request,env={}){
   if(request.method==='POST'&&path==='/api/search'){
    const body=await readJSON(request);return json({evidence:retrieve(combine(body.extraCorpus),{query:String(body.query||'').slice(0,1200),ticker:cleanTicker(body.ticker),limit:8})});
   }
+  if(request.method==='GET'&&path==='/api/documents/extraction'){
+   const id=url.searchParams.get('id'),document=corpus.documents.find(d=>d.id===id);
+   if(!document)return json({error:'Document not found in the shared library.'},404);
+   return json({document,chunks:corpus.chunks.filter(c=>c.documentId===id),note:'Indexed passages retain physical PDF page numbers. Passages may overlap and are not a full-layout PDF transcription.'});
+  }
   if(request.method==='POST'&&path==='/api/ingest'){
    if(Number(request.headers.get('content-length'))>16000000)return json({error:'PDF must be smaller than 15 MB.'},413);
    const form=await request.formData(),file=form.get('file'),ticker=cleanTicker(form.get('ticker'));
    if(!validTicker(ticker)||!file||typeof file.arrayBuffer!=='function')return json({error:'Choose a PDF and enter an NSE ticker.'},400);
    if(file.size>15000000)return json({error:'PDF must be smaller than 15 MB.'},413);
    const bytes=new Uint8Array(await file.arrayBuffer());if(new TextDecoder().decode(bytes.slice(0,5))!=='%PDF-')return json({error:'The file is not a PDF.'},400);
+   const sha256=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
    const pdf=await getDocumentProxy(bytes);if(pdf.numPages>350){await pdf.loadingTask.destroy();return json({error:'For this prototype, import reports of up to 350 pages.'},413)}
    let result;try{result=await extractText(pdf,{mergePages:false})}finally{await pdf.loadingTask.destroy()}
    const pages=Array.isArray(result.text)?result.text:[result.text];
    if(pages.join('').trim().length<150)return json({error:'No readable text found. This PDF may need OCR; use a text-based original.'},422);
    const type=form.get('type')==='annual_report'?'annual_report':'transcript';
    const document={id:'upload-'+crypto.randomUUID(),ticker,title:String(file.name).slice(0,200),type,date:String(form.get('date')||new Date().toISOString().slice(0,10)),period:String(form.get('period')||'Unspecified').slice(0,50),url:'',pages:result.totalPages,provenance:'user_upload'};
-   return json({document,chunks:chunkPages(pages,document),note:'Stored on this device after import. Uploaded provenance is not independently verified.'});
+   document.sha256=sha256;
+   document.extractedAt=new Date().toISOString();
+   return json({document,chunks:chunkPages(pages,document),extractedPages:pages.map((text,i)=>({page:i+1,text})),note:'Stored on this device after import. Uploaded provenance is not independently verified.'});
   }
   if(request.method==='GET'&&['/api/quote','/api/discover','/api/announcements'].includes(path)){
    const ticker=cleanTicker(url.searchParams.get('ticker'));if(!validTicker(ticker))return json({error:'Invalid NSE ticker.'},400);

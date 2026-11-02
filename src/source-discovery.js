@@ -86,7 +86,7 @@ export async function ingestDiscovered({ticker,id,url,corpus=null,fetcher=fetch,
  const sha256=await digest(r.bytes),pages=await extractor(r.bytes);if(!verifyIssuerText(pages,{ticker,company:found.company}))throw new Error('The PDF header does not identify the selected issuer. Open the original and verify the company before a manual import.');
  const document={id:'remote-'+ticker+'-'+sha256.slice(0,20),ticker,title:selected.title,type:selected.type,date:selected.date||'',period:selected.period||'Unspecified',url:r.url,pages:pages.length,provenance:'primary_discovery',identityVerified:true,sha256,discoveredAt:found.fetchedAt,fetchedAt:new Date(now).toISOString(),sourceVersion:VERSION};
  const chunks=chunkPages(pages,document);if(chunks.length>1200)throw new Error('This document is too large for one import. Import a shorter original disclosure.');
- return {document,chunks,note:'Issuer identity matched the PDF header. Original pages and SHA-256 fingerprint retained. Stored on this device after import.'};
+ return {document,chunks,extractedPages:pages.map((text,i)=>({page:i+1,text})),note:'Issuer identity matched the PDF header. Original pages and SHA-256 fingerprint retained. Stored on this device after import.'};
 }
 
 const MANAGEMENT_SCHEMA={type:'object',properties:{facts:{type:'array',maxItems:14,items:{type:'object',properties:{field:{type:'string',enum:['name','role','effectiveDate','background','event']},personType:{type:'string',enum:['incoming','outgoing','unspecified']},value:{type:'string'},quote:{type:'string'},page:{type:'integer'}},required:['field','personType','value','quote','page'],additionalProperties:false}},gaps:{type:'array',items:{type:'string'}}},required:['facts','gaps'],additionalProperties:false};

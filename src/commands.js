@@ -90,7 +90,7 @@ export function parseCommand(prompt,context={},companies=[]){
  else if(/\b(resume|start|enable)\b.*\b(refresh|prices|quotes|tracker|feed|terminal)\b/.test(s))action='resume';
  else if(/\bterminal\b|\btrading desk\b/.test(s))action='terminal';
  else if(/\b(import|upload|add a pdf|add sources)\b/.test(s))action='import';
- else if(/\b(find|discover)\b.*\b(source|sources|disclosures|documents|reports|transcripts)\b/.test(s))action='discover';
+ else if(/\b(find|discover|extract|index)\b.*\b(source|sources|disclosures|documents|reports|transcripts)\b/.test(s))action='discover';
  else if(/\b(thesis|conviction)\b/.test(s)&&/^(open|show|create|draft|write|start|test)\b/.test(s))action='thesis';
  else if(/^(open|show|go to|switch to|take me to)\s+(my |the )?(portfolio|watchlist|source library|library|sources|briefing|overview|saved notes|saved|research desk|research)\s*[.!]?$/.test(s)){
   action='navigate';view=/portfolio|watchlist/.test(s)?'portfolio':/library|sources/.test(s)?'library':/saved/.test(s)?'saved':/research/.test(s)?'research':'briefing';

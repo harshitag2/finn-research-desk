@@ -656,7 +656,7 @@ LT,Larsen &amp; Toubro,Industrials,Account A,100000</pre><p class="check-note">T
   if(action==='inspect-extraction'){state.documentPage=null;inspectExtraction(b.dataset.id);return}
   if(action==='download-extraction'){exportExtraction(false);return}
   if(action==='download-extraction-json'){exportExtraction(true);return}
-  if(action==='extraction-research'){modal.close();state.ticker=b.dataset.ticker;setView('research');return}
+  if(action==='extraction-research'){modal.close();resetDesk(b.dataset.ticker);setView('research');return}
   if(action==='index-discovered'){indexDiscovered(b);return}
   if(action==='indexed-research'){modal.close();if(state.result?.mode==='coverage'&&state.result?.query)investigate(state.result.query,state.ticker);else{resetDesk(state.ticker);setView('research')}return}
   if(action==='focus-command')$('#workspace-command').focus();

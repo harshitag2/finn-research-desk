@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {buildCommitments,validateCommitments,reconcileCommitments} from '../src/commitments.js';
 import {buildCashQuality,validateCashFacts,calculateCashQuality} from '../src/cash-quality.js';
-import {normalizeQuote,numberSupported,periodSupported} from '../src/research-facts.js';
+import {normalizeQuote,numberSupported,periodSupported,quoteNumbers,expandEvidencePages} from '../src/research-facts.js';
 const full=JSON.parse(fs.readFileSync(new URL('../data/corpus.json',import.meta.url),'utf8'));
 const makeEvidence=(id,text,date='2026-04-20')=>({id,documentId:id+'-doc',ticker:'TEST',page:7,text,document:{id:id+'-doc',ticker:'TEST',date,period:'FY26',type:'transcript',title:'Test primary disclosure',url:'https://example.com/test.pdf'}});
 const p=makeEvidence('p','Company management: We expect consolidated FY26 revenue growth in constant currency of 0% to 3%.','2025-04-20');
@@ -27,6 +27,13 @@ test('a guidance statement cannot be reused as achieved delivery',()=>{
  assert.equal(numberSupported(-30,'Cash purchases (30)'),true);assert.equal(numberSupported(30,'Cash purchases (30)'),false);
  assert.equal(periodSupported('FY26',"FY'26 revenue",{}),true);assert.equal(periodSupported('Q2 FY26','Full year FY26 revenue',{}),false);assert.equal(normalizeQuote('a  –  b'),'a - b');
 });
+test('range separators are not negative values and accounting negatives are not double-negated',()=>{
+ assert.deepEqual(quoteNumbers('Guidance0%–3%, then20–22%.'),[0,3,20,22]);
+ assert.deepEqual(quoteNumbers('Growth was -2.4%; cash (1,234), (-1,234), and 29, 211.'),[-2.4,-1234,-1234,29211]);
+ assert.equal(numberSupported(3,'Growth guidance 0%-3%'),true);assert.equal(numberSupported(-2.4,'Revenue growth -2.4%'),true);
+ assert.equal(periodSupported('FY26','Our guidance for this financial year is 3% to 3.5%.',{period:'Q3 FY26',type:'transcript'}),true);
+ assert.equal(periodSupported('FY27','Our guidance for this financial year is 3% to 3.5%.',{period:'Q3 FY26',type:'transcript'}),false);
+});
 const c=makeEvidence('cash','Consolidated statement of cash flows for FY26 (INR crore): Net cash from operating activities 120. Profit after tax for the year 100. Purchase of property, plant and equipment (30).');
 const cashFact=(metric,value,quote)=>({metric,value,quote,period:'FY26',basis:'consolidated',unit:'INR_crore',evidenceId:c.id});
 const rawCash=[cashFact('cfo',120,'Net cash from operating activities 120.'),cashFact('pat',100,'Profit after tax for the year 100.'),cashFact('capex',-30,'Purchase of property, plant and equipment (30).')];
@@ -41,13 +48,21 @@ test('cash quality withholds mismatched scope/scale, conflicting values and zero
  const rows=calculateCashQuality(matched.map(f=>f.metric==='pat'?{...f,basis:'standalone'}:f));assert.ok(rows.every(r=>r.cashConversion===null));
  assert.equal(calculateCashQuality(matched.map(f=>f.metric==='pat'?{...f,value:0}:f))[0].cashConversion,null);
  const conflicting=makeEvidence('conflict','Consolidated statement of cash flows for FY26 (INR crore): Net cash from operating activities 130.');
- const result=validateCashFacts([rawCash[0],{...rawCash[0],value:130,quote:'Net cash from operating activities 130.',evidenceId:'conflict'}],[c,conflicting]);assert.equal(result.facts.length,0);
+ const result=validateCashFacts([rawCash[0],{...rawCash[0],value:130,quote:'Net cash from operating activities 130.',evidenceId:'conflict'}],[c,conflicting]);assert.equal(result.facts.length,2);assert.ok(result.facts.every(f=>f.conflict));const calculated=calculateCashQuality([...result.facts,...matched.filter(f=>f.metric!=='cfo')])[0];assert.equal(calculated.cfo,null);assert.equal(calculated.freeCashFlow,null);assert.equal(calculated.cashConversion,null);assert.match(calculated.gaps[0],/Conflicting CFO/);
 });
 test('real indexed issuers have isolated evidence states without requiring a key',async()=>{
  for(const ticker of ['INFY','HCLTECH','LT']){const r=await buildCommitments({ticker,corpus:full});assert.equal(r.mode,'evidence');assert.ok(r.evidence.length>0);assert.ok(r.evidence.every(e=>e.ticker===ticker));assert.equal(r.rows.length,0)}
  const cash=await buildCashQuality({ticker:'INFY',corpus:full});assert.equal(cash.mode,'evidence');assert.ok(cash.evidence.some(e=>e.document.type==='annual_report'));
  const bank=await buildCashQuality({ticker:'HDFCBANK',corpus:full});assert.equal(bank.mode,'not_applicable');assert.equal(bank.evidence.length,0);
  const absent=await buildCommitments({ticker:'UNKNOWN',corpus:full});assert.equal(absent.mode,'coverage');assert.equal(absent.evidence.length,0);
+});
+test('complete physical cash-flow pages recover statement scope, rupee units, annual columns and core amounts',async()=>{
+ const r=await buildCashQuality({ticker:'INFY',corpus:full}),source=r.evidence.find(e=>e.documentId==='infy-ar-fy26'&&e.page===295);
+ assert.ok(source?.text.includes('Consolidated Statement of Cash Flows'));assert.ok(source.text.includes('33,986'));assert.ok(source.expandedPhysicalPage);
+ const quote=source.text.match(/Net cash generated by operating activities 33,986 35,694/)[0],capex=source.text.match(/Expenditure on property, plant and equipment and intangibles, net of sale proceeds \(Refer to note 2.2\) \(2,727\) \(2,237\)/)[0],pat=source.text.match(/Profit for the year 29,474 26,750/)[0];
+ const facts=[['cfo',33986,quote],['capex',-2727,capex],['pat',29474,pat]].map(([metric,value,quote])=>({metric,value,quote,evidenceId:source.id,period:'FY26',basis:'consolidated',unit:'INR_crore'}));
+ const valid=validateCashFacts(facts,[source]);assert.equal(valid.facts.length,3,JSON.stringify(valid.rejected));assert.equal(calculateCashQuality(valid.facts)[0].freeCashFlow,31259);assert.equal(calculateCashQuality(valid.facts)[0].cashConversion,1.1531);
+ const ledger=await buildCommitments({ticker:'INFY',corpus:full});assert.ok(ledger.evidence.some(e=>e.documentId==='infy-q4-fy25'&&e.page===4),'original guidance page must be retrieved');
 });
 test('model extraction is validated and cached by changed source content, not ticker alone',async()=>{
  const previous=globalThis.fetch;let calls=0;

@@ -134,7 +134,7 @@ export default function boot(portfolioTools,intentTools,chartTools,terminalTools
    else if(o.type==='chart_range'){if(state.view==='analysis'){state.analysisRange=o.value;render()}else{state.stockRange=o.value;if(state.view!=='stock')await openStock(state.ticker);else render()}}
    else if(o.type==='digest_window'){state.digestWindow=o.value;state.digestFilter='';setView('briefing');await loadDigest(true)}
   }
-  if(prefsChanged&&state.view==='briefing')await loadDigest(true);
+  if(prefsChanged){await syncMonitoringIfConfigured();if(state.view==='briefing')await loadDigest(true);}
   return prepared.changes;
  }
  async function loadWorkbench(ticker=state.ticker,tab=state.workbench.tab){
@@ -143,8 +143,10 @@ export default function boot(portfolioTools,intentTools,chartTools,terminalTools
   try{const r=await post('/api/workbench/'+(tab==='cash'?'cash':'commitments'),{ticker,extraCorpus:extraCorpus()});if(seq===state.workbench.seq)state.workbench.result=r}catch(e){if(seq===state.workbench.seq)state.workbench.error=e.message}finally{if(seq===state.workbench.seq){state.workbench.busy=false;if(state.view==='workbench')render()}}
  }
  async function loadInbox(){if(state.inboxBusy)return;state.inboxBusy=true;state.inboxError='';if(state.view==='inbox')render();try{state.inbox=await api('/api/monitor/inbox')}catch(e){state.inboxError=e.message}finally{state.inboxBusy=false;if(state.view==='inbox')render()}}
+ function monitorConfig(enabled=true){return {tickers:watchlist().map(c=>c.ticker),priceThreshold:state.prefs.priceThreshold,volumeThreshold:state.prefs.volumeThreshold,focus:digestFocus(),theses:state.theses,exposure:state.imported?Object.fromEntries(watchlist().map(c=>[c.ticker,c.weight])):{},enabled}}
+ async function syncMonitoringIfConfigured(){try{const data=state.inbox||await api('/api/monitor/inbox');if(data.scope!=='personal')return;const config=monitorConfig(data.config?.enabled!==false);await post('/api/monitor/config',config);if(state.inbox)state.inbox.config=config}catch{toast('Saved on this device; background monitoring could not sync. Open Inbox to retry.')}}
  async function syncMonitor(enabled=true){
-  const config={tickers:watchlist().map(c=>c.ticker),priceThreshold:state.prefs.priceThreshold,volumeThreshold:state.prefs.volumeThreshold,focus:digestFocus(),theses:state.theses,enabled};
+  const config=monitorConfig(enabled);
   await post('/api/monitor/config',config);await loadInbox();toast(enabled?'Watchlist, alert preferences and thesis versions saved for monitoring.':'Background monitoring paused.');
  }
  async function scanMonitor(){if(state.inboxBusy)return;state.inboxBusy=true;state.inboxError='';if(state.view==='inbox')render();try{await post('/api/monitor/run',{})}catch(e){state.inboxError=e.message}finally{state.inboxBusy=false;await loadInbox()}}
@@ -348,7 +350,7 @@ GEMINI_API_KEY=server-side-secret</pre><button class="solid-button" type="submit
   const thesis=String(data.get('thesis')).trim(),disconfirm=String(data.get('disconfirm')).trim(),lens=String(data.get('lens')),nextReview=String(data.get('nextReview'));
   if(!/^[A-Z0-9&-]{1,24}$/.test(ticker)||thesis.length<10||disconfirm.length<10||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(nextReview)){toast('Enter a valid ticker, thesis, disconfirming condition and review date.');return}
   const old=activeThesis(),saved={id:old?.id||crypto.randomUUID(),ticker,thesis,disconfirm,lens,nextReview,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),reviews:old?.reviews||[]};
-  const next=old?state.theses.map(t=>t.id===old.id?saved:t):[saved,...state.theses];if(!persist('finn-theses',next))return;state.theses=next;state.activeThesis=saved.id;state.thesisDraft=null;
+  const next=old?state.theses.map(t=>t.id===old.id?saved:t):[saved,...state.theses];if(!persist('finn-theses',next))return;state.theses=next;state.activeThesis=saved.id;state.thesisDraft=null;syncMonitoringIfConfigured();
   if(intent!=='review'){render();toast('Thesis saved on this device.');return}
   if(state.thesisBusy)return;state.thesisBusy=true;state.ticker=ticker;render();
   try{const result=await post('/api/review',{ticker,thesis,disconfirm,lens,extraCorpus:extraCorpus()});const snapshot={id:crypto.randomUUID(),at:new Date().toISOString(),thesis,disconfirm,lens,result};const updated=state.theses.map(t=>t.id===saved.id?{...t,reviews:[...t.reviews,snapshot].slice(-8)}:t);if(persist('finn-theses',updated)){state.theses=updated;toast('Source review saved with the thesis version.')}}catch(error){toast(error.message)}finally{state.thesisBusy=false;if(state.view==='thesis')render()}
@@ -713,9 +715,9 @@ LT,Larsen &amp; Toubro,Industrials,Account A,100000</pre><p class="check-note">T
   else if(form.id==='research-form'){const data=new FormData(form);investigate(String(data.get('query')),String(data.get('ticker')))}
   else if(form.id==='thesis-form')saveOrReviewThesis(form,event.submitter?.value||'save');
   else if(form.id==='holdings-form'){
-   const status=$('#holdings-status');try{const f=new FormData(form),file=f.get('file');if(!file||file.size>250000)throw new Error('Choose a CSV smaller than 250 KB.');const rows=portfolioTools.parseCSV(await file.text());portfolioTools.consolidate(rows);const value={rows,asOf:String(f.get('asOf')),importedAt:new Date().toISOString()};if(persist('finn-holdings',value)){state.imported=value;state.accountFilter='all';modal.close();setView('portfolio');toast(rows.length+' account positions consolidated on this device.')}}catch(error){status.innerHTML=`<div class="error-panel">${escape(error.message)}</div>`}
+   const status=$('#holdings-status');try{const f=new FormData(form),file=f.get('file');if(!file||file.size>250000)throw new Error('Choose a CSV smaller than 250 KB.');const rows=portfolioTools.parseCSV(await file.text());portfolioTools.consolidate(rows);const value={rows,asOf:String(f.get('asOf')),importedAt:new Date().toISOString()};if(persist('finn-holdings',value)){state.imported=value;state.accountFilter='all';syncMonitoringIfConfigured();modal.close();setView('portfolio');toast(rows.length+' account positions consolidated on this device.')}}catch(error){status.innerHTML=`<div class="error-panel">${escape(error.message)}</div>`}
   }
-  else if(form.id==='preferences-form'){const f=new FormData(form);const prefs={...state.prefs,priceThreshold:Number(f.get('price')),volumeThreshold:Number(f.get('volume'))};if(state.library.digest)prefs.categories=f.getAll('categories').map(String);const display={density:f.get('density')==='compact'?'compact':'comfortable',showIndices:f.has('showIndices')};if(persist('finn-prefs',prefs)&&persist('finn-display',display)){state.prefs=prefs;if(state.analysis)state.analysis={...state.analysis,preferencesChanged:true};state.display=display;applyDisplay();modal.close();toast('Preferences saved.');if(state.view==='briefing')loadDigest(true)}}
+  else if(form.id==='preferences-form'){const f=new FormData(form);const prefs={...state.prefs,priceThreshold:Number(f.get('price')),volumeThreshold:Number(f.get('volume'))};if(state.library.digest)prefs.categories=f.getAll('categories').map(String);const display={density:f.get('density')==='compact'?'compact':'comfortable',showIndices:f.has('showIndices')};if(persist('finn-prefs',prefs)&&persist('finn-display',display)){state.prefs=prefs;if(state.analysis)state.analysis={...state.analysis,preferencesChanged:true};state.display=display;applyDisplay();syncMonitoringIfConfigured();modal.close();toast('Preferences saved.');if(state.view==='briefing')loadDigest(true)}}
   else if(form.id==='workbench-form'){const f=new FormData(form);loadWorkbench(f.get('ticker'),state.workbench.tab)}
   else if(form.id==='new-company-form'){const ticker=String(new FormData(form).get('ticker')).trim().toUpperCase();if(!/^[A-Z0-9&-]{1,24}$/.test(ticker)){toast('Enter a valid NSE ticker.');return}state.ticker=ticker;discover(ticker)}
   else if(form.id==='import-form'){

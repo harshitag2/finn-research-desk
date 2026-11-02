@@ -93,11 +93,12 @@ export function validateManagementFacts(facts,pages){return (Array.isArray(facts
 export async function enrichManagement({ticker,url,env={},fetcher=fetch,extractor=extractPDF,announcementFetcher=fetchAnnouncements,now=Date.now()}={}){
  ticker=symbol(ticker);const rows=await announcementFetcher(ticker,{days:30,fetcher,now});
  const candidates=rows.filter(r=>r.ticker===ticker&&classifyAnnouncement({desc:r.nseCategory,text:r.text}).category==='management_change');
- const item=url?candidates.find(r=>r.url===url):candidates[0];if(!item)throw new Error('No matching management-change filing was found in this issuer’s last 30 days. Select a current management filing from the inbox.');
+ const item=url?candidates.find(r=>r.url===url):candidates.find(r=>/\.pdf(?:[?#]|$)/i.test(r.url))||candidates[0];if(!item)throw new Error('No matching management-change filing was found in this issuer’s last 30 days. Select a current management filing from the inbox.');
  const r=await limitedFetch(item.url,{fetcher,allowed:PRIMARY}),sha256=await digest(r.bytes);const pages=await extractor(r.bytes);
  if(!verifyIssuerText(pages,{ticker,company:item.company}))throw new Error('Management filing did not match the selected issuer.');
  const document={id:'management-'+sha256.slice(0,18),ticker,title:item.nseCategory||'Management change',date:item.at?.slice(0,10)||'',url:r.url,type:'exchange_filing',provenance:'NSE management filing; enrichment only'};
- const chosen=pages.map((text,i)=>({id:document.id+'-p'+(i+1),page:i+1,text,document})).filter(e=>/appoint|resign|brief profile|experience|qualification|chief|director|effective|ceo|cfo|background/i.test(e.text)).slice(0,14);
+ const profilePages=new Set(pages.flatMap((text,i)=>/brief profile|brief resume|professional background/i.test(text)?[i,i+1]:[]));
+ const chosen=pages.map((text,i)=>({id:document.id+'-p'+(i+1),page:i+1,text,document})).filter((e,i)=>pages.length<=8||profilePages.has(i)||/appoint|resign|brief profile|experience|qualification|chief|director|effective|ceo|cfo|background/i.test(e.text)).slice(0,14);
  const evidence=chosen.length?chosen:pages.slice(0,3).map((text,i)=>({id:document.id+'-p'+(i+1),page:i+1,text,document}));
  const base={ticker,source:document,evidence,fetchedAt:new Date(now).toISOString(),note:'Professional background from the issuer’s original filing. This enrichment is separate from annual-report/transcript research.'};
  if(!modelConfig(env).configured)return {...base,status:'evidence',mode:'evidence',facts:[],gaps:['Open the original profile excerpts. Structured person extraction needs the server-side model connection.']};

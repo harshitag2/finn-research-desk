@@ -6,8 +6,9 @@ export function validateMonitorConfig(input){
  const priceThreshold=Number(input.priceThreshold??4),volumeThreshold=Number(input.volumeThreshold??2);
  if(!Number.isFinite(priceThreshold)||priceThreshold<0.1||priceThreshold>50||!Number.isFinite(volumeThreshold)||volumeThreshold<1||volumeThreshold>20)throw new Error('Invalid monitor thresholds.');
  const focus=Array.isArray(input.focus)?[...new Set(input.focus)].filter(c=>CATEGORIES.includes(c)):DEFAULT_FOCUS;
+ const exposure=Object.fromEntries(Object.entries(input.exposure||{}).filter(([t,w])=>tickers.includes(t)&&Number.isFinite(w)&&w>=0&&w<=100));
  const theses=(Array.isArray(input.theses)?input.theses:[]).slice(0,30).filter(t=>tickers.includes(t.ticker)&&typeof t.id==='string').map(t=>({id:t.id.slice(0,100),ticker:t.ticker,thesis:String(t.thesis||'').slice(0,1000),disconfirm:String(t.disconfirm||'').slice(0,1000),lens:Object.hasOwn(LENS_CATEGORIES,t.lens)?t.lens:'business',updatedAt:String(t.updatedAt||'').slice(0,40)}));
- return {tickers,priceThreshold,volumeThreshold,focus,theses,enabled:input.enabled!==false};
+ return {tickers,priceThreshold,volumeThreshold,focus,theses,exposure,enabled:input.enabled!==false};
 }
 export function explainRelevance(item,config){
  const text=(item.summary||item.text||'').toLowerCase();
@@ -16,8 +17,9 @@ export function explainRelevance(item,config){
   const terms=words.filter(w=>text.includes(w)).slice(0,5),categoryMatch=LENS_CATEGORIES[t.lens]?.includes(item.category);
   return terms.length||categoryMatch?[{...t,terms,reason:terms.length?'Filing mentions '+terms.join(', ')+'.':'This filing category is relevant to your '+t.lens+' research lens.',interpretation:'Potential thesis relevance; open the filing before revising your view.'}]:[];
  });
- const reasons=[...(thesisMatches.length?['Relevant to '+thesisMatches.length+' saved thesis'+(thesisMatches.length===1?'':'es')]:[]),...(config.focus.includes(item.category)?['You selected '+item.label+' alerts']:[]),...(item.materiality==='high'?['Exchange category/text indicates a material event']:[])];
- return {thesisMatches,reasons,priority:thesisMatches.length?0:config.focus.includes(item.category)||item.materiality==='high'?1:2};
+ const weight=config.exposure?.[item.ticker];
+ const reasons=[...(Number.isFinite(weight)?['Imported snapshot weight '+weight.toFixed(1)+'%; not live repricing']:[]),...(thesisMatches.length?['Relevant to '+thesisMatches.length+' saved thesis'+(thesisMatches.length===1?'':'es')]:[]),...(config.focus.includes(item.category)?['You selected '+item.label+' alerts']:[]),...(item.materiality==='high'?['Exchange category/text indicates a material event']:[])];
+ return {thesisMatches,reasons,...(Number.isFinite(weight)?{snapshotWeight:weight}:{}),priority:thesisMatches.length?0:config.focus.includes(item.category)||item.materiality==='high'?1:2};
 }
 async function digestId(text){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)))].map(b=>b.toString(16).padStart(2,'0')).join('')}
 export function createMonitorStore(db){

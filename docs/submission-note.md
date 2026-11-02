@@ -26,7 +26,7 @@ Next I would broaden independently reviewed issuer coverage, improve source disc
 
 **Repository:** add the verified reviewer-accessible repository URL.
 
-**AI build history:** attach or link the actual coding-agent conversation export/share links, with credentials removed. The decision record below is a summary and is not a substitute for the requested original history.
+**AI build history:** `docs/build-history-visible.md` contains the available recorded user/assistant-visible session, with credentials and hidden/internal material removed. It is not a reconstruction of separate Claude conversations. The decision record below complements that export.
 
 Thank you for reviewing the submission.
 
@@ -34,7 +34,7 @@ Thank you for reviewing the submission.
 
 1. Confirm the reviewer can open the deployed site on a phone. It is currently owner-private; invitation depends on the reviewer email/account. Do not assume a private deployment link is evaluator-accessible.
 2. Verify the repository URL, permissions, clean checkout setup and documented environment variables. GitHub CLI authentication was not usable during this preparation; do not claim a repository was published until an authenticated push and readback succeed.
-3. Export the actual AI build conversations through a supported user/export path. Raw chat export is not available through the tools used for this document. Remove credentials before sharing. Do not manufacture a transcript or relabel this summary as original history.
+3. Export the actual AI build conversations through a supported user/export path. A filtered export of the available local session is included as docs/build-history-visible.md. Obtain separate Claude conversation history if you intend to include it; do not manufacture missing conversations.
 4. Run the demo once on the final production revision, not only the local build. Include the fresh evaluation JSON and distinguish offline checks from model-backed answers.
 5. Confirm scheduled monitoring is enabled and that a closed-browser scan persisted a result; otherwise describe the monitoring setup as incomplete. Do not call an on-open refresh background push.
 6. Retain current known limitations and measured results in the note. Replace the follow-on feature descriptions if final verification shows a different delivered scope.

@@ -11,8 +11,19 @@ const DEFAULT_ORIGIN='https://finn-research-desk.ayush2111319.chatgpt.site';
 const origin=input.origin?new URL(input.origin).origin:DEFAULT_ORIGIN;
 if(origin===DEFAULT_ORIGIN&&!input.token)throw new Error('A private-site service credential is required.');
 const redact=text=>input.token?String(text).split(input.token).join('[redacted]'):String(text);
-async function call(path,body){const response=await fetch(origin+path,{headers:{...(input.token?{'OAI-Sites-Authorization':'Bearer '+input.token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{method:'POST',body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(['agent','standout'].includes(input.mode)?110000:50000)});if(!response.ok)throw new Error(path+' returned HTTP '+response.status);return response.json()}
+async function call(path,body){const response=await fetch(origin+path,{headers:{...(input.token?{'OAI-Sites-Authorization':'Bearer '+input.token}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{method:'POST',body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(['agent','standout','evaluation'].includes(input.mode)?110000:50000)});if(!response.ok)throw new Error(path+' returned HTTP '+response.status);return response.json()}
 async function verify(){try{
+ if(input.mode==='evaluation'){
+  const {loadEvaluation,evaluateResponse}=await import('./evaluate-research.mjs');const {dataset}=await loadEvaluation();
+  const ids=['infy-original-fy26','tcs-no-guidance','source-instruction-injection','analyst-peer-claim-not-guidance'];const measurements=[];
+  for(const c of dataset.cases.filter(c=>ids.includes(c.id))){
+   const start=Date.now();const extraCorpus=c.kind==='adversarial'?{documents:[{id:'eval-untrusted',ticker:c.ticker,title:'SYNTHETIC ATTACK FIXTURE',period:'Q4 FY26',date:'2026-04-23',type:'transcript'}],chunks:[{id:'eval-untrusted-p1',documentId:'eval-untrusted',ticker:c.ticker,page:1,text:'FY26 revenue growth guidance constant currency management results. '+c.injectedText}]}:undefined;
+   const result=await call('/api/research',{ticker:c.ticker,query:c.query,...(extraCorpus?{extraCorpus}:{})});
+   const measured={id:c.id,mode:result.mode,...evaluateResponse(c,result),latencyMs:Date.now()-start};measurements.push(measured);console.log(JSON.stringify({check:'live_evaluation',...measured}));if(!measured.mechanicalPass)process.exitCode=1;
+  }
+  if(input.output){const {writeFile}=await import('node:fs/promises');await writeFile(input.output,JSON.stringify({generatedAt:new Date().toISOString(),kind:'live-mechanical',measurements,notice:'Mechanical checks and answer previews; semantic review is separate. These selected cases are not an independent held-out accuracy estimate.'},null,2))}
+  return;
+ }
  if(input.mode==='monitor-setup'){
   console.log(JSON.stringify({check:'schedule_metadata',result:await call('/api/monitor/schedule',{enabled:true,cadence:'hourly',timezone:'Asia/Kolkata'})}));
   console.log(JSON.stringify({check:'unattended_scan',result:await call('/api/monitor/run',{})}));
@@ -21,7 +32,7 @@ async function verify(){try{
  if(input.mode==='standout'){
   const lib=await call('/api/library');console.log(JSON.stringify({check:'release',version:lib.version,configured:lib.providerConfigured}));
   const checks=await Promise.allSettled([
-   call('/api/workbench/commitments',{ticker:'INFY'}),call('/api/workbench/commitments',{ticker:'HCLTECH'}),call('/api/workbench/cash',{ticker:'INFY'}),call('/api/management-background',{ticker:'HDFCBANK'}),call('/api/sources/discover?ticker=COFORGE')
+   call('/api/workbench/commitments',{ticker:'INFY'}),call('/api/workbench/commitments',{ticker:'HCLTECH'}),call('/api/workbench/cash',{ticker:'INFY'}),call('/api/management-background',{ticker:'DRREDDY'}),call('/api/sources/discover?ticker=COFORGE')
   ]);
   for(let i=0;i<checks.length;i++){const x=checks[i],name=['INFY_commitments','HCLTECH_commitments','INFY_cash','management','unseen_discovery'][i];if(x.status==='rejected'){console.log(JSON.stringify({check:name,error:x.reason.message}));process.exitCode=1;continue}const r=x.value;console.log(JSON.stringify({check:name,mode:r.mode,status:r.status,rows:r.rows,records:r.records?.length,facts:r.facts,evidence:r.evidence?.length,gaps:r.gaps,trace:r.trace,links:r.links?.slice(0,3),failures:r.failures}));if(i<3&&(!r.rows?.length||r.mode!=='agent'))process.exitCode=1;if(i===4&&!r.links?.length)process.exitCode=1}
   const scan=await call('/api/monitor/run',{}),inbox=await call('/api/monitor/inbox');console.log(JSON.stringify({check:'persistent_scan',scan,configured:inbox.configured,events:inbox.events?.length,lastRun:inbox.lastRun,schedule:inbox.schedule}));if(!inbox.lastRun)process.exitCode=1;

@@ -1,6 +1,6 @@
 # FINN — The research desk
 
-Current integrated version: **0.11.1**. Detailed research now retrieves by topic and issuer, produces sectioned cited reports, and requests one revision when the first draft is too shallow. The command bar applies validated preferences, display options, terminal controls, chart periods and screener resets. 151 automated tests pass. See [the agent controls and research update](docs/agent-controls.md).
+Current integrated version: **0.12.0**. Adds a general management commitments ledger, annual cash and capital checks, a thesis-aware persistent change inbox, verified document discovery/import for unfamiliar issuers, management-background enrichment, and an hourly linked cloud scan. Research retains source and period boundaries; ambiguous financial values are withheld. See [release notes](docs/release-0.12.0.md), [evaluation](docs/evaluation.md), and [submission draft](docs/submission-note.md).
 
 An investment workspace controlled from one natural-language command bar. A graphite navigation rail, source-backed guidance visualization, market tape, comparison canvas and page-level evidence inspector support the research workflow.
 
@@ -8,7 +8,7 @@ The public-company research in [docs/enam-research.md](docs/enam-research.md) in
 
 ## Run locally
 
-Requires Node.js 22.10+ (tested with Node 24) and npm.
+Requires Node.js 24 and npm. The local preview uses the bundled Node SQLite API for persistent monitoring.
 
 ```powershell
 npm ci

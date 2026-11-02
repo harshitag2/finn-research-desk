@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {buildCommitments,validateCommitments,reconcileCommitments} from '../src/commitments.js';
+import {buildCommitments,validateCommitments,reconcileCommitments,extractExplicitCommitments} from '../src/commitments.js';
 import {buildCashQuality,validateCashFacts,calculateCashQuality} from '../src/cash-quality.js';
 import {normalizeQuote,numberSupported,periodSupported,quoteNumbers,expandEvidencePages} from '../src/research-facts.js';
 const full=JSON.parse(fs.readFileSync(new URL('../data/corpus.json',import.meta.url),'utf8'));
@@ -56,10 +56,17 @@ test('cash quality withholds mismatched scope/scale, conflicting values and zero
  const result=validateCashFacts([rawCash[0],{...rawCash[0],value:130,quote:'Net cash from operating activities 130.',evidenceId:'conflict'}],[c,conflicting]);assert.equal(result.facts.length,2);assert.ok(result.facts.every(f=>f.conflict));const calculated=calculateCashQuality([...result.facts,...matched.filter(f=>f.metric!=='cfo')])[0];assert.equal(calculated.cfo,null);assert.equal(calculated.freeCashFlow,null);assert.equal(calculated.cashConversion,null);assert.match(calculated.gaps[0],/Conflicting CFO/);
 });
 test('real indexed issuers have isolated evidence states without requiring a key',async()=>{
- for(const ticker of ['INFY','HCLTECH','LT']){const r=await buildCommitments({ticker,corpus:full});assert.equal(r.mode,'evidence');assert.ok(r.evidence.length>0);assert.ok(r.evidence.every(e=>e.ticker===ticker));assert.equal(r.rows.length,0)}
+ for(const ticker of ['INFY','HCLTECH','LT']){const r=await buildCommitments({ticker,corpus:full});assert.ok(['agent','evidence'].includes(r.mode));assert.ok(r.evidence.length>0);assert.ok(r.evidence.every(e=>e.ticker===ticker));if(r.mode==='evidence')assert.equal(r.rows.length,0)}
  const cash=await buildCashQuality({ticker:'INFY',corpus:full});assert.equal(cash.extractionMode,'deterministic_statement');assert.ok(cash.evidence.some(e=>e.document.type==='annual_report'));
  const bank=await buildCashQuality({ticker:'HDFCBANK',corpus:full});assert.equal(bank.mode,'not_applicable');assert.equal(bank.evidence.length,0);
  const absent=await buildCommitments({ticker:'UNKNOWN',corpus:full});assert.equal(absent.mode,'coverage');assert.equal(absent.evidence.length,0);
+});
+test('generic declarative guidance parsing recovers the actual four dated revisions and correct final delivery',async()=>{
+ const r=await buildCommitments({ticker:'INFY',corpus:full}),row=r.rows.find(x=>x.metric==='revenue_growth'&&x.targetPeriod==='FY26');assert.equal(r.extractionMode,'deterministic_guidance');
+ assert.deepEqual(row.promises.map(p=>[p.date,p.low,p.high]),[['2025-04-17',0,3],['2025-07-23',1,3],['2025-10-16',2,3],['2026-01-14',3,3.5]]);assert.equal(row.actual.value,3.1);assert.equal(row.status,'within');assert.equal(row.comparison.high,3.5);
+ assert.ok(r.records.every(record=>r.evidence.some(e=>e.id===record.evidenceId&&normalizeQuote(e.text).includes(record.quote))));
+ const bad=makeEvidence('ambiguous','Our revenue growth guidance for FY26 is 0% to 3% and operating margin 20% to 22% in constant currency. Could you explain our revenue growth guidance for FY26 of 1% to 3% in constant currency?');assert.equal(extractExplicitCommitments([bad]).rows.length,0);
+ const revised=makeEvidence('revised','Our revenue growth guidance for FY26 was 0% to 3%, now it will be 1% to 3% in constant currency.');assert.deepEqual(extractExplicitCommitments([revised]).rows.map(r=>[r.low,r.high]),[[1,3]]);
 });
 test('complete physical cash-flow pages recover statement scope, rupee units, annual columns and core amounts',async()=>{
  const r=await buildCashQuality({ticker:'INFY',corpus:full}),source=r.evidence.find(e=>e.documentId==='infy-ar-fy26'&&e.page===295);
@@ -76,8 +83,8 @@ test('model extraction is validated and cached by changed source content, not ti
  try{
   const env={GEMINI_API_KEY:'test-key',FINN_MODEL:'test-ledger'};
   const one=await buildCommitments({ticker:'TEST',corpus,env});assert.equal(one.mode,'agent');assert.equal(one.records.length,2);assert.equal(one.rows[0].status,'above');
-  const two=await buildCommitments({ticker:'TEST',corpus,env});assert.equal(two.cached,true);assert.equal(calls,2);
-  await buildCommitments({ticker:'TEST',corpus:{...corpus,chunks:[{...p,text:p.text+' Source revision.'},a]},env});assert.equal(calls,4);
+  const two=await buildCommitments({ticker:'TEST',corpus,env});assert.equal(two.cached,true);assert.equal(calls,1);
+  await buildCommitments({ticker:'TEST',corpus:{...corpus,chunks:[{...p,text:p.text+' Source revision.'},a]},env});assert.equal(calls,2);
  }finally{globalThis.fetch=previous}
 });
 test('cash model output passes through exact source validation and deterministic calculation',async()=>{

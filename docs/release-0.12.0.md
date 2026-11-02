@@ -28,3 +28,5 @@ Source/provider availability varies. Numerical quote validation is not full sema
 ## Final verification patch: 0.12.1
 
 Commitments are extracted per document under a shared deadline. Later unextracted same-year disclosures withhold a final verdict. Cash-flow statements with explicit scope, currency and March-year headers can be parsed directly without a model; other supported formats retain guarded extraction. The final complete automated count and live outputs are recorded in the submission package. The available visible build-history export contains 137 recorded messages with the detected credential redacted.
+
+Generic explicit first-person guidance declarations can also be parsed directly: the real Infosys four-revision FY26 timeline and final 3.1% delivery reconcile within 3–3.5% without a model. Unsupported wording uses the guarded per-document fallback. A later annual report cannot shift the guidance cutoff beyond the first actual disclosure.

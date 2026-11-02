@@ -21,7 +21,7 @@ export default function boot(portfolioTools,intentTools,chartTools,terminalTools
  const watchlist=()=>state.imported?portfolioTools.consolidate(state.imported.rows).holdings:state.library?.portfolio||[];
  const company=ticker=>watchlist().find(c=>c.ticker===ticker)?.name||state.library?.portfolio.find(c=>c.ticker===ticker)?.name||ticker;
  const activeThesis=()=>state.theses.find(t=>t.id===state.activeThesis);
- const currentResult=()=>state.view==='thesis'?activeThesis()?.reviews?.at(-1)?.result:state.result;
+ const currentResult=()=>['workbench','inbox'].includes(state.view)?null:state.view==='thesis'?activeThesis()?.reviews?.at(-1)?.result:state.result;
  const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(new Date());
  const nextMonth=()=>{const d=new Date(today()+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+30);return d.toISOString().slice(0,10)};
  const money=n=>'₹'+Number(n).toLocaleString('en-IN',{maximumFractionDigits:2});
@@ -161,7 +161,7 @@ export default function boot(portfolioTools,intentTools,chartTools,terminalTools
   prompt=String(prompt).trim();if(prompt.length<3)return;modal.close();$('#workspace-command').value=prompt;state.commandBusy=true;$('#command-submit').disabled=true;commandStatus('Understanding your request…');
   let plan;
   try{
-   plan=await post('/api/command',{prompt,context:{ticker:state.ticker,tickers:scopeTickers(),view:state.view,previousQuery:state.result?.documentQuery||state.result?.query||state.query}});state.plan=plan;
+   plan=await post('/api/command',{prompt,context:{ticker:state.view==='thesis'?(activeThesis()?.ticker||state.ticker):state.view==='workbench'?state.workbench.ticker:state.view==='stock'?state.stockTicker:state.ticker,tickers:['thesis','workbench','stock'].includes(state.view)?[]:scopeTickers(),view:state.view,previousQuery:state.result?.documentQuery||state.result?.query||state.query}});state.plan=plan;
    if(plan.action==='clarify'){commandStatus(plan.message,[],'attention');return}
    if(plan.action==='workbench'){await loadWorkbench(plan.tickers[0],plan.tab);commandStatus('Diligence check ready · '+plan.tickers[0],[],state.workbench.error?'attention':'done');return}
    if(plan.action==='inbox'){setView('inbox');if(plan.scan)await scanMonitor();commandStatus('Change inbox opened',[],'done');return}

@@ -18,7 +18,7 @@ async function verify(){try{
   const ids=new Set(r.evidence?.map(e=>e.id)),valid=r.findings?.length&&r.findings.every(f=>f.evidenceIds?.length&&f.evidenceIds.every(id=>ids.has(id)));
   const text=r.findings?.map(f=>f.text).join(' ')||'',sections=r.sections?.filter(s=>s.indexes?.length).length||0;
   console.log(JSON.stringify({check:'detailed_comparison',mode:r.mode,depth:r.depth,status:r.depthStatus,findings:r.findings?.length,sections,words:text.split(/\s+/).length,characters:text.length,citationsValid:Boolean(valid),issuers:[...new Set(r.evidence?.map(e=>e.ticker))],gaps:r.gaps,firstFinding:r.findings?.[0],trace:r.trace?.map(t=>t.tool)}));
-  if(r.mode!=='agent'||r.depth!=='detailed'||!valid||r.findings.length<8||sections<4||text.length<2400)process.exitCode=1;
+  if(r.mode!=='agent'||r.depth!=='detailed'||!valid||r.findings.length<8||sections<4||text.length<2400||text.split(/\s+/).length<650)process.exitCode=1;
   const plan=await call('/api/command',{prompt:'Set price alert to 5% and volume alert to 3x and use compact layout',context:{view:'research'}});
   const invalid=await call('/api/command',{prompt:'Set price alert to 500%',context:{view:'research'}});
   console.log(JSON.stringify({check:'workspace_commands',plan,invalid}));

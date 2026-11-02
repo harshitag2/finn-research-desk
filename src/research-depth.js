@@ -30,6 +30,8 @@ export function detailQuality(findings,evidence,depth){
  if(findings.length<Math.min(issuers.length>1?8:6,depth.dimensions.length*2))reasons.push('Too few substantive findings for a detailed report.');
  if(sections.size<Math.min(4,depth.dimensions.length))reasons.push('Cover the requested report topics with developed findings.');
  if(chars<2400)reasons.push('Explain the evidence, drivers and implications in developed paragraphs rather than isolated facts.');
+ const words=findings.map(f=>f.text).join(' ').trim().split(/\s+/).length,minWords=depth.dimensions.length>=5?650:450;
+ if(words<minWords)reasons.push('The detailed report is only '+words+' words. Develop the supported analysis to at least '+minWords+' words; explain drivers, issuer differences, periods and qualifications without padding or inventing facts.');
  for(const ticker of issuers){if(findings.filter(f=>f.evidenceIds.some(id=>byId.get(id)?.ticker===ticker)).length<2)reasons.push('Insufficient cited discussion of '+ticker+'.')}
  return {sufficient:!reasons.length,reasons};
 }

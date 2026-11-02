@@ -30,7 +30,7 @@ Enter `Set price alert to 5% and volume alert to 3x and use compact layout` and 
 
 ## Optional management-change example
 
-If the selected real filing names an incoming executive, open the source-linked role/background card. Show the official filing or biography and effective date. A resignation without a replacement should remain “replacement not disclosed”. Do not use an unrelated profile with a matching name.
+Verified example: open DRREDDY management background for the 23 October 2026 filing, naming Akhil Ravi with an appointment effective 13 November 2026. Treat that date as future, not an already assumed role. Open the source-linked role/background card. Show the official filing or biography and effective date. A resignation without a replacement should remain “replacement not disclosed”. Do not use an unrelated profile with a matching name.
 
 ## Preflight
 

@@ -11,11 +11,11 @@
 
 ## Verification and evaluation
 
-The 26-case evaluation set contains 15 reviewed exact source anchors. The offline run passed25 cases with0 failures; the one model-only injection case is separately exercised in the selected live run. Four selected live mechanical cases passed: original Infosys guidance, TCS no-guidance, adversarial source instructions, and analyst questions about a peer. These are diagnostic checks, not a held-out semantic accuracy percentage. Live reports are included in the submission ZIP.
+The 26-case evaluation set contains 15 reviewed exact source anchors. The offline run passed 25 cases with 0 failures; the one model-only injection case is separately exercised in the selected live run. Four selected live mechanical cases passed: original Infosys guidance, TCS no-guidance, adversarial source instructions, and analyst questions about a peer. These are diagnostic checks, not a held-out semantic accuracy percentage. Live reports are included in the submission ZIP.
 
-The offline evaluation found a real source-ranking miss, now addressed by a general explicit-guidance cue and participant-list downweight, without ticker-specific answer rules. Four live small-question calls measured approximately2–3 seconds; detailed reports and financial extraction can take longer. Provider token counts are not exposed by the current adapter, so no monetary savings are fabricated.
+The offline evaluation found a real source-ranking miss, now addressed by a general explicit-guidance cue and participant-list downweight, without ticker-specific answer rules. Four live small-question calls measured approximately 2–3 seconds; detailed reports and financial extraction can take longer. Provider token counts are not exposed by the current adapter, so no monetary savings are fabricated.
 
-Hosted source discovery returned COFORGE primary links; direct official transcript ingestion was verified with23 physical pages and49 chunks. Real management extraction verified HDFCBANK’s outgoing manager and source-retrieval verified DRREDDY’s incoming appointment/biography, effective13 November2026. D1 persisted a scan and a deduplicated alert; a subsequent unattended API run added zero duplicates. The hourly schedule was saved and enabled; this is distinct from claiming a clock-triggered run has already occurred.
+Hosted source discovery returned COFORGE primary links; direct official transcript ingestion was verified with 23 physical pages and 49 chunks. Real management extraction verified HDFCBANK’s outgoing manager and source-retrieval verified DRREDDY’s incoming appointment/biography, effective 13 November 2026. D1 persisted a scan and a deduplicated alert; a subsequent unattended API run added zero duplicates. The hourly schedule was saved and enabled; this is distinct from claiming a clock-triggered run has already occurred.
 
 ## Submission
 
@@ -23,4 +23,8 @@ The source, setup instructions, evaluation cases/reports, covering-note draft, f
 
 ## Known limits
 
-Source/provider availability varies. Numerical quote validation is not full semantic entailment. Model schema400 responses may retry once in JSON mode; all extraction guards still apply. Caches are bounded and isolate-local. The monitor retains up to150 latest items per read, uses public-source polling rather than exchange streaming, and does not send trade orders. Automatic source discovery is followed by a user-selected import; it does not silently ingest arbitrary URLs.
+Source/provider availability varies. Numerical quote validation is not full semantic entailment. Model schema 400 responses may retry once in JSON mode; all extraction guards still apply. Caches are bounded and isolate-local. The monitor retains up to 150 latest items per read, uses public-source polling rather than exchange streaming, and does not send trade orders. Automatic source discovery is followed by a user-selected import; it does not silently ingest arbitrary URLs.
+
+## Final verification patch: 0.12.1
+
+Commitments are extracted per document under a shared deadline. Later unextracted same-year disclosures withhold a final verdict. Cash-flow statements with explicit scope, currency and March-year headers can be parsed directly without a model; other supported formats retain guarded extraction. The final complete automated count and live outputs are recorded in the submission package. The available visible build-history export contains 137 recorded messages with the detected credential redacted.

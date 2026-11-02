@@ -10,6 +10,9 @@ test('new prompt routes preserve named company and do not need model routing',()
  assert.equal(workbenchCommand('Check Infosys cash quality',{},companies).tab,'cash');
  assert.equal(workbenchCommand('Pause background monitoring',{},companies).enabled,false);
  assert.equal(workbenchCommand('Show TCS stock price',{},companies),null);
+ assert.equal(workbenchCommand('Show coforge management commitments',{},companies).tickers[0],'COFORGE');
+ assert.equal(workbenchCommand('Compare Infosys and TCS commitments',{},companies).action,'clarify');
+ assert.equal(workbenchCommand('Show L&T commitments',{},[{ticker:'LT',name:'Larsen & Toubro'}]).tickers[0],'LT');
 });
 test('monitor configuration is durable, isolated by authenticated visitor and rejects cross-origin mutations',async()=>{
  const DB=await localDatabase(':memory:');

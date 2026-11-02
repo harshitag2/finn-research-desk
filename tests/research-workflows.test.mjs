@@ -22,6 +22,11 @@ test('promise reconciliation uses the latest dated guidance and does not merge i
  const quarter=reconcileCommitments([rows[0],{...rows[1],targetPeriod:'Q4 FY26'}],{now:'2026-11-02'});assert.equal(quarter.find(r=>r.promises.length).status,'outcome_missing');
  assert.equal(reconcileCommitments([{...rows[0],targetPeriod:'FY28'}],{now:'2026-11-02'})[0].status,'not_yet_due');
 });
+test('later unextracted same-year transcripts prevent a false final-guidance verdict',()=>{
+ const {rows}=validateCommitments([record(p),record(a,'actual')],[p,a]);
+ const incomplete=reconcileCommitments(rows,{documents:[{id:'later-q2',type:'transcript',date:'2025-10-20',period:'Q2 FY26',title:'Later management update'}]})[0];
+ assert.equal(incomplete.status,'coverage_incomplete');assert.equal(incomplete.comparison,null);assert.equal(incomplete.missingDisclosures[0].id,'later-q2');
+});
 test('a guidance statement cannot be reused as achieved delivery',()=>{
  assert.equal(validateCommitments([record(p,'actual',{value:3})],[p]).rows.length,0);
  assert.equal(numberSupported(-30,'Cash purchases (30)'),true);assert.equal(numberSupported(30,'Cash purchases (30)'),false);
@@ -52,7 +57,7 @@ test('cash quality withholds mismatched scope/scale, conflicting values and zero
 });
 test('real indexed issuers have isolated evidence states without requiring a key',async()=>{
  for(const ticker of ['INFY','HCLTECH','LT']){const r=await buildCommitments({ticker,corpus:full});assert.equal(r.mode,'evidence');assert.ok(r.evidence.length>0);assert.ok(r.evidence.every(e=>e.ticker===ticker));assert.equal(r.rows.length,0)}
- const cash=await buildCashQuality({ticker:'INFY',corpus:full});assert.equal(cash.mode,'evidence');assert.ok(cash.evidence.some(e=>e.document.type==='annual_report'));
+ const cash=await buildCashQuality({ticker:'INFY',corpus:full});assert.equal(cash.extractionMode,'deterministic_statement');assert.ok(cash.evidence.some(e=>e.document.type==='annual_report'));
  const bank=await buildCashQuality({ticker:'HDFCBANK',corpus:full});assert.equal(bank.mode,'not_applicable');assert.equal(bank.evidence.length,0);
  const absent=await buildCommitments({ticker:'UNKNOWN',corpus:full});assert.equal(absent.mode,'coverage');assert.equal(absent.evidence.length,0);
 });
@@ -67,17 +72,17 @@ test('complete physical cash-flow pages recover statement scope, rupee units, an
 test('model extraction is validated and cached by changed source content, not ticker alone',async()=>{
  const previous=globalThis.fetch;let calls=0;
  const corpus={documents:[p.document,a.document],chunks:[p,a]};
- globalThis.fetch=async(url,options)=>{calls++;const body=JSON.parse(options.body);assert.equal(body.generationConfig.responseJsonSchema.properties.records.maxItems,16);return Response.json({candidates:[{content:{parts:[{text:JSON.stringify({records:[record(p),record(a,'actual')],gaps:[]})}]}}]})};
+ globalThis.fetch=async(url,options)=>{calls++;const body=JSON.parse(options.body);assert.equal(body.generationConfig.responseJsonSchema.properties.records.maxItems,6);return Response.json({candidates:[{content:{parts:[{text:JSON.stringify({records:[record(p),record(a,'actual')],gaps:[]})}]}}]})};
  try{
   const env={GEMINI_API_KEY:'test-key',FINN_MODEL:'test-ledger'};
   const one=await buildCommitments({ticker:'TEST',corpus,env});assert.equal(one.mode,'agent');assert.equal(one.records.length,2);assert.equal(one.rows[0].status,'above');
-  const two=await buildCommitments({ticker:'TEST',corpus,env});assert.equal(two.cached,true);assert.equal(calls,1);
-  await buildCommitments({ticker:'TEST',corpus:{...corpus,chunks:[{...p,text:p.text+' Source revision.'},a]},env});assert.equal(calls,2);
+  const two=await buildCommitments({ticker:'TEST',corpus,env});assert.equal(two.cached,true);assert.equal(calls,2);
+  await buildCommitments({ticker:'TEST',corpus:{...corpus,chunks:[{...p,text:p.text+' Source revision.'},a]},env});assert.equal(calls,4);
  }finally{globalThis.fetch=previous}
 });
 test('cash model output passes through exact source validation and deterministic calculation',async()=>{
  const previous=globalThis.fetch;
- globalThis.fetch=async(url,options)=>{const body=JSON.parse(options.body);assert.equal(body.generationConfig.responseJsonSchema.properties.facts.maxItems,16);return Response.json({candidates:[{content:{parts:[{text:JSON.stringify({facts:rawCash,gaps:[]})}]}}]})};
+ globalThis.fetch=async(url,options)=>{const body=JSON.parse(options.body);assert.equal(body.generationConfig.responseJsonSchema.properties.facts.maxItems,6);return Response.json({candidates:[{content:{parts:[{text:JSON.stringify({facts:rawCash,gaps:[]})}]}}]})};
  try{const r=await buildCashQuality({ticker:'TEST',corpus:{documents:[c.document],chunks:[c]},env:{GEMINI_API_KEY:'test-key',FINN_MODEL:'test-cash'}});assert.equal(r.mode,'agent');assert.equal(r.facts.length,3);assert.equal(r.rows[0].freeCashFlow,90)}finally{globalThis.fetch=previous}
 });
 test('provider rejection remains diagnosable without leaking credentials or raw errors',async()=>{

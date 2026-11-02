@@ -2,6 +2,7 @@ import {buildCommitments} from './commitments.js';
 import {buildCashQuality} from './cash-quality.js';
 import {discoverSources,ingestDiscovered,enrichManagement} from './source-discovery.js';
 import {createMonitorStore,validateMonitorConfig,runMonitor,readInbox} from './monitor.js';
+import {parseCommand} from './commands.js';
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
 const valid=t=>/^[A-Z0-9&-]{1,24}$/.test(t);
 const local=url=>['127.0.0.1','localhost','[::1]'].includes(url.hostname);
@@ -10,9 +11,11 @@ async function body(request,max=2500000){if(!request.headers.get('content-type')
 export function workbenchCommand(prompt,context,companies){
  let mode=null;if(/\b(?:commitments?|promis(?:e[ds]?|ing)|promised vs delivered|management track record)\b/i.test(prompt))mode='commitments';
  if(/\b(?:cash quality|cash conversion|follow the cash|cash allocation|cash flow check)\b/i.test(prompt))mode='cash';
- const company=companies.find(c=>[c.ticker,c.name,...(c.aliases||[])].some(n=>new RegExp('(?:^|\\W)'+String(n).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?:$|\\W)','i').test(prompt)));
- const explicit=String(prompt).match(/\b[A-Z][A-Z0-9&-]{1,23}\b/g)?.find(t=>!['NSE','BSE','CFO','CEO','PAT','FCF','FY26','FY27'].includes(t));
- const ticker=company?.ticker||explicit||context?.ticker||'INFY';
+ const named=mode?(parseCommand(prompt,{},companies).tickers||[]).filter(t=>!/^FY\d{2,4}$|^Q[1-4]$/.test(t)):[];
+ const raw=String(prompt).match(/(?:show|check|review|research)\s+([a-z0-9&.-]+)\s+(?:management\s+)?(?:commitments|cash\s+(?:quality|conversion|allocation))/i)?.[1]||String(prompt).match(/(?:commitments|cash quality)\s+(?:for|of)\s+([a-z0-9&.-]+)/i)?.[1];
+ const explicit=raw&&!/^(?:their|this|my|the|our|management|cash|me|company)$/i.test(raw)?raw.toUpperCase().replace(/\.NS$/,''):null;
+ if(mode&&named.length>1)return {action:'clarify',tickers:[],query:prompt,message:'Choose one company for the management and cash workbench. Use the research desk for a multi-company comparison.'};
+ const ticker=named[0]||explicit||context?.ticker||'INFY';
  if(mode&&valid(ticker))return {action:'workbench',tab:mode,tickers:[ticker],query:prompt};
  if(/^(?:open |show |check |my )?(?:change |thesis )?inbox\b/i.test(prompt)||/^(?:scan|check) (?:my )?alerts\b/i.test(prompt))return {action:'inbox',scan:/^(?:scan|check)/i.test(prompt),tickers:[],query:prompt};
  if(/^(?:enable|start|pause|stop|disable) (?:background )?monitoring\b/i.test(prompt))return {action:'monitor',enabled:/^(?:enable|start)/i.test(prompt),tickers:[],query:prompt};

@@ -52,8 +52,9 @@ async function quotes(ticker){
  const key='quote:'+ticker;const cached=cache.get(key);if(cached&&Date.now()-cached.time<900000)return cached.value;
  const response=await fetch('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(ticker+'.NS')+'?range=3mo&interval=1d',{headers:{'User-Agent':'Mozilla/5.0 FINN research prototype'},signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw new Error('Market data provider unavailable (HTTP '+response.status+')');
- const raw=await response.json();const r=raw.chart?.result?.[0];if(!r?.timestamp)throw new Error('No market data for this ticker');
- const q=r.indicators.quote[0];const now=new Date();const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(now);const marketClosed=now.getUTCHours()*60+now.getUTCMinutes()>=630;
+ const raw=await response.json();const r=raw.chart?.result?.[0];if(!Array.isArray(r?.timestamp)||!r.timestamp.length)throw new Error('No market data for this ticker');
+ const q=r.indicators?.quote?.[0];if(!Array.isArray(q?.close)||!Array.isArray(q?.volume))throw new Error('The market data provider returned incomplete daily prices or volumes. Try again or open exchange filings.');
+ const now=new Date();const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(now);const marketClosed=now.getUTCHours()*60+now.getUTCMinutes()>=630;
  const days=r.timestamp.map((t,i)=>({date:new Date(t*1000).toISOString().slice(0,10),close:q.close[i],volume:q.volume[i]})).filter(d=>Number.isFinite(d.close)&&Number.isFinite(d.volume)&&(d.date!==today||marketClosed));
  if(days.length<2)throw new Error('Not enough completed sessions');const last=days.at(-1),prev=days.at(-2),history=days.slice(-21,-1),average=history.reduce((s,d)=>s+d.volume,0)/history.length;
  const value={ticker,currency:r.meta?.currency||'INR',...last,changePercent:(last.close-prev.close)/prev.close*100,volumeRatio:average?last.volume/average:null,averageVolume:average,averageSessions:history.length,history:days.slice(-30),source:'Yahoo Finance · unadjusted daily close',fetchedAt:new Date().toISOString()};cache.set(key,{time:Date.now(),value});return value;

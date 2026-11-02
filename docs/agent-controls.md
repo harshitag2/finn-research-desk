@@ -1,4 +1,4 @@
-# Detailed research and workspace controls — 0.11.0
+# Detailed research and workspace controls — 0.11.1
 
 Requests such as “compare infy and tcs in detail” use balanced retrieval across business/demand, revenue/growth, margins/execution, cash/capital allocation and guidance/deals/risks. Narrow detailed questions use the relevant dimensions. Retrieval stays inside the requested issuer and disclosure period. The agent targets developed, cited findings, checks breadth and issuer coverage, and may request one revision before returning an explicitly partial report. It never fills source gaps with invented figures. The original coverage and provider-failure gates remain in place.
 
@@ -23,3 +23,7 @@ Preferences and display choices persist on this browser/device and stay in sync 
 ## Verification
 
 151 unit/integration tests pass, including balanced detailed retrieval, thin-answer repair, citations, period scoping, invalid commands and compound settings. Browser verification confirmed compound 5%/3x/compact changes survive reload, update the digest limits, hide indices, and reject a 500% threshold. Hosted Gemini synthesis and final UI are checked during publication.
+
+## Deployment verification
+
+Always run `node scripts/build.mjs` inside the source workflow before packaging. The deployment archive must include the current depth word-count check and partial-report renderer; source synchronization alone does not rebuild dist. Use a new source revision for a changed deployment artifact.

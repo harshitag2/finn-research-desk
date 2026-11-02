@@ -1,4 +1,5 @@
 import {buildDigest,CATEGORIES,DEFAULT_FOCUS} from './digest.js';
+import {HORIZONS,urgency} from './alert-rules.js';
 const symbol=s=>typeof s==='string'&&/^[A-Z0-9&-]{1,24}$/.test(s);
 const LENS_CATEGORIES={business:['results','M&A','capex','press_release'],management:['management_change','fund_raise','capex','M&A','results'],cash:['results','fund_raise','dividend','credit_rating'],downside:['litigation','credit_rating','pledging','fund_raise'],governance:['management_change','litigation','pledging','insider_trading']};
 export function validateMonitorConfig(input){
@@ -8,7 +9,9 @@ export function validateMonitorConfig(input){
  const focus=Array.isArray(input.focus)?[...new Set(input.focus)].filter(c=>CATEGORIES.includes(c)):DEFAULT_FOCUS;
  const exposure=Object.fromEntries(Object.entries(input.exposure||{}).filter(([t,w])=>tickers.includes(t)&&Number.isFinite(w)&&w>=0&&w<=100));
  const theses=(Array.isArray(input.theses)?input.theses:[]).slice(0,30).filter(t=>tickers.includes(t.ticker)&&typeof t.id==='string').map(t=>({id:t.id.slice(0,100),ticker:t.ticker,thesis:String(t.thesis||'').slice(0,1000),disconfirm:String(t.disconfirm||'').slice(0,1000),lens:Object.hasOwn(LENS_CATEGORIES,t.lens)?t.lens:'business',updatedAt:String(t.updatedAt||'').slice(0,40)}));
- return {tickers,priceThreshold,volumeThreshold,focus,theses,exposure,enabled:input.enabled!==false};
+ const alertHorizons=Array.isArray(input.alertHorizons)?[...new Set(input.alertHorizons)]:Object.keys(HORIZONS);if(!alertHorizons.length||alertHorizons.some(h=>!HORIZONS[h]))throw new Error('Choose Daily, Weekly or Monthly alert horizons.');
+ const horizonThresholds={'1W':Number(input.horizonThresholds?.['1W']??8),'1M':Number(input.horizonThresholds?.['1M']??15)};if(Object.values(horizonThresholds).some(v=>!Number.isFinite(v)||v<0.1||v>200))throw new Error('Weekly/monthly thresholds must be between 0.1% and 200%.');
+ return {tickers,priceThreshold,volumeThreshold,focus,theses,exposure,alertHorizons,horizonThresholds,enabled:input.enabled!==false};
 }
 export function explainRelevance(item,config){
  const text=(item.summary||item.text||'').toLowerCase();
@@ -30,6 +33,8 @@ export function createMonitorStore(db){
   config:owner=>db.prepare('SELECT config_json FROM finn_monitor_config WHERE owner = ?').bind(owner).first(),
   schedule:async()=>{const r=await db.prepare("SELECT value FROM finn_monitor_meta WHERE key = 'schedule'").bind().first();return r?JSON.parse(r.value):null},
   saveSchedule:s=>db.prepare("INSERT INTO finn_monitor_meta (key,value) VALUES ('schedule',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(s)).run(),
+  saveSnapshot:(owner,s)=>db.prepare('INSERT INTO finn_monitor_meta (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind('market:snapshot:'+owner,JSON.stringify(s)).run(),
+  snapshot:async owner=>{const r=await db.prepare('SELECT value FROM finn_monitor_meta WHERE key = ?').bind('market:snapshot:'+owner).first();return r?JSON.parse(r.value):null},
   saveConfig:(owner,c)=>db.prepare('INSERT INTO finn_monitor_config (owner,config_json,enabled,updated_at) VALUES (?,?,?,?) ON CONFLICT(owner) DO UPDATE SET config_json=excluded.config_json,enabled=excluded.enabled,updated_at=excluded.updated_at').bind(owner,JSON.stringify(c),c.enabled?1:0,new Date().toISOString()).run(),
   insert:async(owner,event)=>{const id=await digestId(owner+'|'+event.key);const r=await db.prepare('INSERT OR IGNORE INTO finn_monitor_events (id,owner,ticker,kind,payload_json,first_seen_at,state) VALUES (?,?,?,?,?,?,?)').bind(id,owner,event.ticker,event.kind,JSON.stringify(event),new Date().toISOString(),'new').run();return Number(r.meta?.changes||0)},
   events:owner=>all('SELECT id,payload_json,first_seen_at,state FROM finn_monitor_events WHERE owner = ? ORDER BY first_seen_at DESC LIMIT 150',owner),
@@ -49,20 +54,23 @@ export async function runMonitor({store,owner,config,digest=buildDigest,now=Date
   const last=await store.checkpoint(owner),age=last?.started_at?now-Date.parse(last.started_at):86400000;
   const window=age>7*86400000?'30d':age>3*86400000?'7d':age>86400000?'3d':'24h';
   const d=await digest({tickers:config.tickers,window,prefs:config,focus:config.focus,now});let added=0;
+  if(Array.isArray(d.horizonSnapshots))await store.saveSnapshot(owner,{checkedAt:startedAt,rows:d.horizonSnapshots,failures:d.priceFailures||[]});
   for(const item of d.items||[]){
    const relevance=explainRelevance(item,config);
    // The full feed stays in Overview; the monitoring inbox stores selected, material or thesis-related events.
    if(relevance.priority===2)continue;
    const key='filing|'+item.ticker+'|'+(item.url||item.nseCategory+'|'+item.text+'|'+item.at);
-   added+=await store.insert(owner,{key,kind:'filing',ticker:item.ticker,at:item.at,category:item.category,label:item.label,title:item.summary||item.nseCategory,text:item.text,url:item.url,links:item.links||[],...relevance});
+   added+=await store.insert(owner,{key,kind:'filing',horizon:'filing',ticker:item.ticker,at:item.at,category:item.category,materiality:item.materiality,label:item.label,title:item.summary||item.nseCategory,text:item.text,url:item.url,links:item.links||[],...relevance,...urgency({...item,kind:'filing'})});
   }
-  for(const a of d.priceAlerts||[]){added+=await store.insert(owner,{key:'price|'+a.ticker+'|'+a.type+'|'+a.date,kind:a.type,ticker:a.ticker,at:a.date,title:a.text,text:a.text,priority:1,reasons:['Crossed your '+a.threshold+(a.type==='price'?'% price':'× volume')+' threshold using completed-session data.'],thesisMatches:[],value:a.value,threshold:a.threshold})}
+  if((config.alertHorizons||['1D']).includes('1D'))for(const a of d.priceAlerts||[]){added+=await store.insert(owner,{key:'price|'+a.ticker+'|'+a.type+'|'+a.date,kind:a.type,horizon:'1D',ticker:a.ticker,at:a.date,title:a.text,text:a.text,priority:1,reasons:['Crossed your '+a.threshold+(a.type==='price'?'% price':'× volume')+' threshold using completed-session data.'],thesisMatches:[],value:a.value,threshold:a.threshold,...urgency(a)})}
+  for(const a of d.horizonAlerts||[]){added+=await store.insert(owner,{key:'horizon|'+a.ticker+'|'+a.horizon+'|'+a.date,kind:'horizon_price',horizon:a.horizon,ticker:a.ticker,at:a.date,startDate:a.startDate,title:a.text,text:a.text,priority:1,reasons:[a.basis+' · completed sessions only.'],thesisMatches:[],value:a.value,threshold:a.threshold,...urgency(a)})}
   const failures=[...(d.failures||[]),...(d.priceFailures||[])];
   r={startedAt,finishedAt:new Date().toISOString(),status:failures.length?((d.items?.length||d.priceAlerts?.length)?'partial':'unavailable'):'ok',added,failures,window};
  }catch(e){r={startedAt,finishedAt:new Date().toISOString(),status:'unavailable',added:0,failures:[{error:String(e.message).slice(0,500)}]}}
  try{await store.run(owner,r)}finally{await store.release(owner)}return r;
 }
 export async function readInbox(store,owner){
- const config=await store.config(owner),events=await store.events(owner),lastRun=await store.lastRun(owner);
- return {configured:!!config,config:config?JSON.parse(config.config_json):null,lastRun,schedule:await store.schedule(),events:events.map(e=>({id:e.id,state:e.state,firstSeenAt:e.first_seen_at,...JSON.parse(e.payload_json)})).sort((a,b)=>a.priority-b.priority||b.firstSeenAt.localeCompare(a.firstSeenAt)),method:'Relevance uses your selected categories, saved thesis lens and matching terms. It is a review cue, not a conclusion that a thesis is invalid.'};
+ const config=await store.config(owner),events=await store.events(owner),lastRun=await store.lastRun(owner),marketSummary=store.snapshot?await store.snapshot(owner):null;
+ const mapped=events.map(e=>{const p=JSON.parse(e.payload_json);return {id:e.id,state:e.state,firstSeenAt:e.first_seen_at,...p,horizon:p.horizon||(p.kind==='filing'?'filing':'1D'),...urgency(p)}}).sort((a,b)=>(a.urgency===b.urgency?0:a.urgency==='urgent'?-1:1)||a.priority-b.priority||b.firstSeenAt.localeCompare(a.firstSeenAt));
+ return {configured:!!config,config:config?JSON.parse(config.config_json):null,lastRun,marketSummary,schedule:await store.schedule(),events:mapped,summary:{urgent:mapped.filter(e=>e.urgency==='urgent'&&!['dismissed','reviewed'].includes(e.state)).length,nonUrgent:mapped.filter(e=>e.urgency!=='urgent'&&!['dismissed','reviewed'].includes(e.state)).length},method:'Urgency uses explicit price/volume thresholds or adverse wording in material filing categories. Daily/weekly/monthly horizons use completed trading sessions. These are review cues, not investment recommendations.'};
 }

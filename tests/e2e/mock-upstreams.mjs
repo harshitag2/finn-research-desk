@@ -111,6 +111,7 @@ function yahoo(url) {
 
 function gemini(options) {
   const body = JSON.parse(options.body);
+  if(body.contents?.some(c=>c.parts?.some(p=>p.inlineData)))return reply({transcript:'Show Reliance current stock price',command:'Reliance current stock price',language:'English',unclear:false});
   const system = body.systemInstruction?.parts?.[0]?.text || '';
   const user = JSON.parse(body.contents?.[0]?.parts?.[0]?.text || '{}');
   const mode = state().gemini || 'ok';

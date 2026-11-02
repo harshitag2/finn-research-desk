@@ -17,6 +17,7 @@ import {terminalQuotes} from './exchange-quotes.js';
 import createTerminalTools from './terminal-tools.js';
 import {modelConfig} from './model-config.js';
 import {planCommand} from './commands.js';
+import {voiceStatus,transcribeVoice} from './voice.js';
 import {searchCompanies} from './company-search.js';
 import {investigateWorkspace} from './workspace-research.js';
 import {analyzePortfolio} from './deep-dive.js';
@@ -84,6 +85,13 @@ export default {async fetch(request,env={}){
  const url=new URL(request.url);const path=url.pathname;
  if(request.method==='GET'&&path==='/api/search'){const r=await searchCompanies(url.searchParams.get('q'));return json(r,r.status==='invalid'?400:200)}
  try{
+  if(request.method==='GET'&&path==='/api/voice/status')return json(voiceStatus(env));
+  if(request.method==='POST'&&path==='/api/voice/transcribe'){
+   const origin=request.headers.get('origin');if(origin&&origin!==url.origin)return json({error:'Use FINN to record audio.'},403);
+   if(Number(request.headers.get('content-length')||0)>5200000)return json({error:'Use an audio clip smaller than 5 MB.'},413);
+   const form=await request.formData(),file=form.get('audio');if(!file||typeof file.arrayBuffer!=='function'||file.size>5000000)return json({error:'Choose an audio clip smaller than 5 MB.'},400);
+   return json(await transcribeVoice({bytes:new Uint8Array(await file.arrayBuffer()),mimeType:file.type,env,companies:PORTFOLIO}));
+  }
   const workbench=await handleWorkbench(request,env,{corpus,combine,portfolio:PORTFOLIO});if(workbench)return workbench;
   if(request.method==='GET'&&path==='/')return new Response(HTML,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'}});
   if(request.method==='GET'&&path==='/styles.css')return new Response(CSS+'\n'+WORKSPACE_CSS+'\n'+STITCH_CSS+'\n'+REFINEMENTS_CSS+'\n'+WORKBENCH_CSS+'\n'+MOBILE_CSS,{headers:{'Content-Type':'text/css; charset=utf-8'}});

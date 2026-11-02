@@ -3,12 +3,17 @@ import {buildCashQuality} from './cash-quality.js';
 import {discoverSources,ingestDiscovered,enrichManagement} from './source-discovery.js';
 import {createMonitorStore,validateMonitorConfig,runMonitor,readInbox} from './monitor.js';
 import {parseCommand} from './commands.js';
+import {notificationStore,notificationStatus,saveNotificationSettings,dispatchWhatsApp,whatsappWebhook} from './whatsapp.js';
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
 const valid=t=>/^[A-Z0-9&-]{1,24}$/.test(t);
 const local=url=>['127.0.0.1','localhost','[::1]'].includes(url.hostname);
 const owner=(request,url)=>request.headers.get('oai-authenticated-user-id')?.slice(0,200)||(local(url)?'local-preview':'shared');
 async function body(request,max=2500000){if(!request.headers.get('content-type')?.includes('application/json'))throw new Error('Send JSON for this operation.');const text=await request.text();if(text.length>max)throw new Error('Request too large.');return JSON.parse(text)}
 export function workbenchCommand(prompt,context,companies){
+ if(/\bwhats\s*app\b/i.test(prompt)&&/\b(connect|setup|set up|configure|settings|updates)\b/i.test(prompt))return {action:'notification_setup',tickers:[],query:prompt};
+ const alertSetting=String(prompt).match(/\b(?:set|change|make)\b.*\b(daily|weekly|monthly)\b.*\b(?:alerts?|threshold|moves?)\b.*?(\d+(?:\.\d+)?)\s*%/i);
+ if(alertSetting){const horizon={daily:'1D',weekly:'1W',monthly:'1M'}[alertSetting[1].toLowerCase()],threshold=Number(alertSetting[2]);if(threshold<0.1||threshold>(horizon==='1D'?50:200))return {action:'clarify',tickers:[],query:prompt,message:'Choose a threshold from 0.1% to '+(horizon==='1D'?50:200)+'%.'};return {action:'alert_preferences',horizon,threshold,tickers:[],query:prompt}}
+ if(/\b(?:open|show|check|scan|view)\b.*\b(?:alerts?|updates|notifications)\b/i.test(prompt)&&!/\b(company|companies|announcements|business|results|monthly business)\b/i.test(prompt))return {action:'inbox',scan:/^scan\b/i.test(prompt),horizon:/\bmonthly\b/i.test(prompt)?'1M':/\bweekly\b/i.test(prompt)?'1W':/\bdaily\b/i.test(prompt)?'1D':'all',urgencyFilter:/\b(?:non[ -]?urgent|regular)\b/i.test(prompt)?'non_urgent':/\burgent\b/i.test(prompt)?'urgent':'all',tickers:[],query:prompt};
  let mode=null;if(/\b(?:commitments?|promis(?:e[ds]?|ing)|promised vs delivered|management track record)\b/i.test(prompt))mode='commitments';
  if(/\b(?:cash quality|cash conversion|follow the cash|cash allocation|cash flow check)\b/i.test(prompt))mode='cash';
  const named=mode?(parseCommand(prompt,{},companies).tickers||[]).filter(t=>!/^FY\d{2,4}$|^Q[1-4]$/.test(t)):[];
@@ -23,11 +28,12 @@ export function workbenchCommand(prompt,context,companies){
 }
 export async function handleWorkbench(request,env,{corpus,combine,portfolio}){
  const url=new URL(request.url),path=url.pathname;
- if(!/^\/api\/(?:workbench\/|monitor\/|sources\/|management-background$)/.test(path))return null;
+ if(!/^\/api\/(?:workbench\/|monitor\/|sources\/|management-background$|whatsapp\/webhook$)/.test(path))return null;
  try{
   if(request.method==='POST'){
    const origin=request.headers.get('origin');if(origin&&origin!==url.origin)return json({error:'Use this workspace to make changes.'},403);
   }
+  if(path==='/api/whatsapp/webhook'){if(!env.DB)return json({error:'Storage unavailable'},503);return whatsappWebhook(request,env,notificationStore(env.DB))}
   if(path==='/api/sources/discover'&&request.method==='GET')return json(await discoverSources({ticker:url.searchParams.get('ticker'),corpus}));
   if(path==='/api/sources/ingest'&&request.method==='POST'){const b=await body(request,20000);return json(await ingestDiscovered({ticker:b.ticker,id:b.id,corpus}))}
   if(path==='/api/management-background'&&request.method==='POST'){const b=await body(request,20000);return json(await enrichManagement({ticker:b.ticker,url:b.url,env}))}
@@ -40,8 +46,12 @@ export async function handleWorkbench(request,env,{corpus,combine,portfolio}){
   if(path.startsWith('/api/monitor/')){
    if(!env.DB)return json({error:'Persistent monitoring storage is not connected.',status:'storage_unavailable'},503);
    const store=createMonitorStore(env.DB),who=owner(request,url);
+   const delivery=notificationStore(env.DB);
+   if(path==='/api/monitor/whatsapp'&&request.method==='GET'){if(who==='shared')return json({error:'Sign in to configure personal WhatsApp updates.'},403);return json(await notificationStatus(delivery,who,env))}
+   if(path==='/api/monitor/whatsapp'&&request.method==='POST'){if(who==='shared')return json({error:'Sign in first.'},403);await saveNotificationSettings(delivery,who,await body(request,5000));return json({saved:true,...await notificationStatus(delivery,who,env)})}
+   if(path==='/api/monitor/whatsapp/test'&&request.method==='POST'){if(who==='shared')return json({error:'Sign in first.'},403);await body(request,1000);return json(await dispatchWhatsApp({store:delivery,owner:who,events:[],env,test:true}))}
    if(path==='/api/monitor/inbox'&&request.method==='GET'){
-    const own=await store.config(who);return json({...await readInbox(store,own?who:'shared'),scope:own?'personal':'default'});
+    const own=await store.config(who);return json({...await readInbox(store,own?who:'shared'),scope:own?'personal':'default',delivery:who==='shared'?null:await notificationStatus(delivery,who,env)});
    }
    if(path==='/api/monitor/schedule'&&request.method==='POST'){
     if(request.headers.has('oai-authenticated-user-id'))return json({error:'Schedule metadata is managed by the cloud setup.'},403);
@@ -58,7 +68,7 @@ export async function handleWorkbench(request,env,{corpus,combine,portfolio}){
     const runs=[];for(const profile of profiles.slice(0,10)){
      const config=profile.config_json?validateMonitorConfig(JSON.parse(profile.config_json)):validateMonitorConfig({tickers:portfolio.map(c=>c.ticker),enabled:true});
      if(!profile.config_json)await store.saveConfig(profile.owner,config);
-     runs.push(await runMonitor({store,owner:profile.owner,config}));
+     const run=await runMonitor({store,owner:profile.owner,config});if(config.enabled&&run.status!=='running'&&await store.lease('wa:'+profile.owner,Date.now())){try{const inbox=await readInbox(store,profile.owner);run.whatsapp=await dispatchWhatsApp({store:delivery,owner:profile.owner,events:inbox.events,marketSummary:inbox.marketSummary,env})}catch{run.whatsapp={status:'unavailable'}}finally{await store.release('wa:'+profile.owner)}}runs.push(run);
     }
     return json({status:runs.every(r=>r.status==='ok')?'ok':'partial',profiles:runs.length,added:runs.reduce((n,r)=>n+r.added,0),runs:runs.map(({owner,...r})=>r)});
    }

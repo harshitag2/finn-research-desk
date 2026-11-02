@@ -1,4 +1,5 @@
 import { fetchHistories } from './analytics.js';
+import {horizonAlerts as makeHorizonAlerts,marketSnapshot} from './alert-rules.js';
 
 // Push digest: exchange announcements for the portfolio over a chosen window, classified into the
 // reference document's categories, prioritised so material filings come first and routine paperwork is
@@ -133,17 +134,17 @@ export async function buildDigest({ tickers, names = {}, window = '24h', prefs =
   const counts = {};
   for (const i of items) counts[i.category] = (counts[i.category] || 0) + 1;
   const failures = unique.filter((t) => !results[t].ok).map((t) => ({ ticker: t, error: results[t].error }));
-  let priceAlerts = [], priceFailures = [];
+  let priceAlerts = [], priceFailures = [], horizonAlerts = [], horizonSnapshots = [];
   if (includePrices) {
     const h = await fetchHistories(unique, { fetcher, now });
     const sessions = window === '24h' ? 1 : window === '3d' ? 3 : window === '7d' ? 5 : 21;
-    for (const t of unique) { if (h[t]?.ok) priceAlerts.push(...windowAlerts(h[t].data, sessions, prefs)); else priceFailures.push({ ticker: t, error: h[t]?.error }); }
+    for (const t of unique) { if (h[t]?.ok){priceAlerts.push(...windowAlerts(h[t].data, sessions, prefs));horizonAlerts.push(...makeHorizonAlerts(h[t].data,prefs));const snapshot=marketSnapshot(h[t].data);if(snapshot)horizonSnapshots.push(snapshot)} else priceFailures.push({ ticker: t, error: h[t]?.error }); }
     priceAlerts.sort((a, b) => (a.severity === b.severity ? b.date.localeCompare(a.date) || Math.abs(b.value) - Math.abs(a.value) : a.severity === 'high' ? -1 : 1));
   }
   return {
     window, days, from: new Date(cutoff).toISOString(), to: new Date(now).toISOString(),
     status: failures.length === unique.length ? 'unavailable' : failures.length ? 'partial' : 'ok',
-    items, counts, focus: [...focusSet], priceAlerts, failures, priceFailures,
+    items, counts, focus: [...focusSet], priceAlerts, horizonAlerts, horizonSnapshots, failures, priceFailures,
     summary: { filings: items.length, attention: items.filter((i) => i.materiality === 'high').length, worthALook: items.filter((i) => i.materiality === 'medium').length, routine: items.filter((i) => i.materiality === 'routine').length, priceAlerts: priceAlerts.length },
     source: 'NSE corporate announcements (exchange feed) · Yahoo Finance daily history',
     notice: 'Classified from NSE\'s category label and summary text; open the filing for the full disclosure. Price alerts use completed sessions and your thresholds. Evaluated when you open the digest — FINN does not monitor in the background.',

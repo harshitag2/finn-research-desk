@@ -15,7 +15,7 @@ test('valid citations alone do not make a two-fact response a detailed report',(
 });
 test('a thin detailed draft receives one repair request and produces structured cited sections',async()=>{
  const previous=globalThis.fetch;let count=0,lastPrompt;
- globalThis.fetch=async(url,options)=>{count++;const body=JSON.parse(options.body),user=JSON.parse(body.contents[0].parts[0].text);lastPrompt=body.systemInstruction.parts[0].text;assert.equal(body.generationConfig.maxOutputTokens,6500);const evidence=user.initialEvidence;
+ globalThis.fetch=async(url,options)=>{count++;const body=JSON.parse(options.body),user=JSON.parse(body.contents[0].parts[0].text);lastPrompt=body.systemInstruction.parts[0].text;assert.equal(body.generationConfig.maxOutputTokens,6500);assert.equal(body.generationConfig.responseJsonSchema.properties.findings.minItems,10);const evidence=user.initialEvidence;
   const findings=count===1?evidence.slice(0,2).map(e=>({text:'A short fact',evidenceIds:[e.id],section:'growth'})):['business','growth','profitability','capital','outlook'].flatMap(section=>['INFY','TCS'].map(ticker=>({section,evidenceIds:[evidence.find(e=>e.ticker===ticker).id],text:(ticker+' source-backed explanatory paragraph about this topic and its period, drivers and qualifications. ').repeat(6)})));
   return Response.json({candidates:[{content:{parts:[{text:JSON.stringify({action:'finish',findings,gaps:[]})}]}}]});
  };

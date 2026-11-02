@@ -25,3 +25,11 @@ export async function extractionKey(version,ticker,evidence,config){
  const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 export function boundedCache(max=24,ttl=600000){const entries=new Map();return {get(key){const x=entries.get(key);if(!x||Date.now()-x.at>ttl){entries.delete(key);return null}return structuredClone(x.value)},set(key,value){if(entries.size>=max)entries.delete(entries.keys().next().value);entries.set(key,{at:Date.now(),value:structuredClone(value)})}}}
+export function extractionFailure(error,config={}){
+ const status=Number.isInteger(error?.status)&&error.status>=100&&error.status<=599?error.status:null;
+ const type=['SyntaxError','TimeoutError','AbortError','TypeError','RangeError'].includes(error?.name)?error.name:'ProviderError';
+ let safeDetail=typeof error?.safeDetail==='string'?error.safeDetail:'';
+ if(config.key)safeDetail=safeDetail.split(config.key).join('[redacted]');
+ safeDetail=safeDetail.replace(/Bearer\s+\S+/gi,'Bearer [redacted]').replace(/(?:AIza|AQ\.)[A-Za-z0-9_.-]{15,}/g,'[redacted]').replace(/([?&](?:key|token|api_key)=)[^\s&]+/gi,'$1[redacted]').replace(/[\r\n]+/g,' ').slice(0,300);
+ return {tool:'extraction_error',status,errorType:type,...(safeDetail?{safeDetail}:{}),detail:status?'Provider rejected extraction (HTTP '+status+').'+(safeDetail?' '+safeDetail:''):type==='SyntaxError'?'The model returned incomplete or invalid JSON.':type==='TimeoutError'||type==='AbortError'?'The extraction request exceeded its deadline or was cancelled.':'The extraction could not be completed; inspect provider configuration and retry.'};
+}

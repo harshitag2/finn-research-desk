@@ -5,6 +5,17 @@ import {researchDepth,expandedEvidence,detailQuality} from '../src/research-dept
 import {retrieve,runResearch,validateFindings} from '../src/research.js';
 const full=JSON.parse(fs.readFileSync(new URL('../data/corpus.json',import.meta.url),'utf8'));
 const corpus={documents:full.documents.filter(d=>['INFY','TCS'].includes(d.ticker)),chunks:full.chunks.filter(c=>['INFY','TCS'].includes(c.ticker))};
+
+test('detailed output requires reader-facing context and retains it in cited paragraphs',async()=>{
+ const previous=globalThis.fetch;
+ globalThis.fetch=async(_url,options)=>{
+  const body=JSON.parse(options.body),input=JSON.parse(body.contents[0].parts[0].text),schema=body.generationConfig.responseJsonSchema.properties.findings.items;
+  assert.ok(schema.required.includes('context'));
+  const findings=['growth','profitability','outlook'].flatMap(section=>[0,1].map(i=>({section,text:'A supported fact from the supplied company disclosure.',context:('Reader-facing source context explains the reporting period and distinguishes the management statement from the observed result with appropriate qualifications. ').repeat(4),evidenceIds:[input.initialEvidence[i].id]})));
+  return Response.json({candidates:[{content:{parts:[{text:JSON.stringify({action:'finish',findings,gaps:[]})}]}}]});
+ };
+ try{const r=await runResearch({query:'Explain TCS growth outlook in detail',ticker:'TCS',corpus,env:{GEMINI_API_KEY:'test-key'}});assert.equal(r.depthStatus,'complete');assert.equal(r.findings.length,6);assert.ok(r.findings.every(f=>f.text.includes('Reader-facing source context')))}finally{globalThis.fetch=previous}
+});
 test('in-detail comparisons retrieve across subjects and both issuers rather than company-name matches',()=>{
  const depth=researchDepth('compare infy and tcs in detail'),evidence=expandedEvidence(corpus,{query:'compare infy and tcs in detail',depth,retrieve});
  assert.equal(depth.maxFindings,18);assert.ok(evidence.length>6);assert.ok(evidence.filter(e=>e.ticker==='INFY').length>=5);assert.ok(evidence.filter(e=>e.ticker==='TCS').length>=5);assert.ok(new Set(evidence.map(e=>e.retrievalTopic)).size>=4);assert.ok(evidence.every(e=>e.page&&e.document));

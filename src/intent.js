@@ -89,6 +89,15 @@ export default function createIntentTools() {
     );
   }
 
+  // Company lookup is separate from research intent; do not route a sentence about an issuer as a lookup.
+  function stockSearch(query,companies=[]){
+    const normal=s=>String(s||'').toLowerCase().replace(/\.(ns|bo)$/,'').replace(/[^a-z0-9&]/g,'').replace(/(?:limited|ltd)$/,'');
+    const q=normal(query);if(q.length<2||String(query).length>100)return [];
+    const byTicker=new Map();for(const c of companies){if(c?.ticker&&/^[A-Z0-9&-]{1,24}$/.test(c.ticker))byTicker.set(c.ticker,c)}
+    for(const ticker of Object.keys(aliases))if(!byTicker.has(ticker))byTicker.set(ticker,{ticker,name:aliases[ticker].at(-1)});
+    return [...byTicker.values()].map(c=>{const names=[c.ticker,c.name,...(aliases[c.ticker]||[])].map(normal),exact=names.includes(q);return {...c,exact,score:exact?0:names.some(n=>n.startsWith(q))?1:names.some(n=>n.includes(q))?2:3}}).filter(c=>c.score<3).sort((a,b)=>a.score-b.score||a.ticker.localeCompare(b.ticker)).slice(0,6);
+  }
+
   // Replace company names and symbols with stable placeholders (xco0x, xco1x…) so that
   // "Tata Steel price" is read as a company followed by price, not steel prices.
   function mask(text, entities) {
@@ -256,5 +265,5 @@ export default function createIntentTools() {
     return { filters, sort, recognized: filters.length > 0 || Boolean(sortMetric) };
   }
 
-  return { marketIntent, entityNames, aliases, parseScreen, SCREEN_LABELS };
+  return { marketIntent, entityNames, aliases, stockSearch, parseScreen, SCREEN_LABELS };
 }

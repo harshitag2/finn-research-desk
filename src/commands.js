@@ -79,6 +79,9 @@ export function validatePlan(plan,prompt,context={},companies=[]){
  return {...extra,action,tickers,query:String(plan.query||prompt).slice(0,1200),view:{analyze:'analysis',markets:'markets',screen:'markets',stock:'stock',digest:'briefing',results:'stock',terminal:'terminal'}[action]||view,includePrices,documentQuery:includePrices&&market.requested?market.documentQuery:String(plan.query||prompt).slice(0,1200)};
 }
 export function parseCommand(prompt,context={},companies=[]){
+ const lookup=String(prompt).trim().replace(/^(?:search(?: for)?|find|open|show(?: me)?)\s+/i,'').replace(/\s+(?:stock|shares?)$/i,'');
+ const exact=intent.stockSearch(lookup,companies).filter(c=>c.exact);
+ if(exact.length===1)return {action:'stock',tickers:[exact[0].ticker],query:prompt,includePrices:false,view:'stock'};
  const control=workspaceActions.parse(prompt,context,(companies||[]).map(c=>({...c,aliases:aliases[c.ticker]||[]})));
  if(control)return control.error?{action:'clarify',reason:'workspace_control',tickers:[],query:prompt,includePrices:false,view:context.view||'briefing',message:control.error}:{action:'workspace',tickers:[],query:prompt,includePrices:false,view:context.view||'briefing',workspace:control};
  const expanded=context.previousQuery&&/^(?:please\s+)?(?:in detail|more detail|explain (?:it |that )?in detail|go deeper|elaborate|make (?:it|this) (?:more )?detailed)[.!?\s]*$/i.test(prompt.trim())?context.previousQuery+'. Explain in detail.':prompt;

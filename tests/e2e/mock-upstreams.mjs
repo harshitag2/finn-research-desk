@@ -211,6 +211,7 @@ function reply(json) {
 
 globalThis.fetch = async (input, options = {}) => {
   const url = typeof input === 'string' ? input : input.url;
+  if(url.startsWith('https://query1.finance.yahoo.com/v1/finance/search'))return Response.json({quotes:[{symbol:'COFORGE.NS',longname:'Coforge Limited',quoteType:'EQUITY'}]});
   if (url.startsWith('https://query1.finance.yahoo.com/v8/finance/chart/')) return yahoo(url);
   if (url.startsWith('https://generativelanguage.googleapis.com/')) return gemini(options);
   if (url.startsWith('https://www.nseindia.com/api/quote-equity')) return new Response('TEST FIXTURE: exchange access denied', {status:403});

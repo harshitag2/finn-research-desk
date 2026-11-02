@@ -17,6 +17,7 @@ import {terminalQuotes} from './exchange-quotes.js';
 import createTerminalTools from './terminal-tools.js';
 import {modelConfig} from './model-config.js';
 import {planCommand} from './commands.js';
+import {searchCompanies} from './company-search.js';
 import {investigateWorkspace} from './workspace-research.js';
 import {analyzePortfolio} from './deep-dive.js';
 import {fetchHistories,stockMetrics,alignOn,INDICES,BENCHMARK,SECTOR_INDEX} from './analytics.js';
@@ -81,6 +82,7 @@ async function announcements(ticker){
 }
 export default {async fetch(request,env={}){
  const url=new URL(request.url);const path=url.pathname;
+ if(request.method==='GET'&&path==='/api/search'){const r=await searchCompanies(url.searchParams.get('q'));return json(r,r.status==='invalid'?400:200)}
  try{
   const workbench=await handleWorkbench(request,env,{corpus,combine,portfolio:PORTFOLIO});if(workbench)return workbench;
   if(request.method==='GET'&&path==='/')return new Response(HTML,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'}});

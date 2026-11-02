@@ -27,13 +27,15 @@ export default function createPortfolioTools(){
    if(!type)throw new Error('Row '+(i+2)+': unsupported asset_type. Use Stocks, Mutual Funds, ETFs, Bonds, Gold, Cash, Fixed Deposits, Other or Unclassified.');
    if(!(['Stocks','ETFs'].includes(type)?/^[A-Z0-9&-]{1,24}$/:/^[A-Z0-9][A-Z0-9_.:&-]{0,39}$/).test(ticker))throw new Error('Row '+(i+2)+': invalid ticker or instrument identifier.');
    if(value.currency&&value.currency.toUpperCase()!=='INR')throw new Error('Row '+(i+2)+': only INR snapshots are supported.');
+   if(value.quantity&&!/^\d+(?:\.\d{1,8})?$/.test(value.quantity))throw new Error('Row '+(i+2)+': quantity must be nonnegative with at most eight decimals.');
+   const quantity=value.quantity?Number(value.quantity):null;if(quantity!==null&&(!Number.isFinite(quantity)||quantity>1e10))throw new Error('Row '+(i+2)+': quantity exceeds the supported range.');
    const amount=value.market_value.replace(/[₹,\s]/g,'');
    if(!/^\d+(?:\.\d{1,2})?$/.test(amount)||!Number.isFinite(Number(amount))||Number(amount)>1e13)throw new Error('Row '+(i+2)+': market_value must be a nonnegative INR amount with at most two decimals.');
    const account=(value.account||'Main account').slice(0,100),key=account.toLowerCase()+'|'+type+'|'+ticker;
    if(unique.has(key))throw new Error('Duplicate '+ticker+' in '+account+'. Consolidate lots into one row per account and ticker.');unique.add(key);
    const sector=(value.sector||'Unclassified').slice(0,100),name=(value.name||ticker).slice(0,150);
    const instrument=type+'|'+ticker,previous=companyMeta.get(instrument);if(previous&&previous.sector!==sector)throw new Error('Conflicting sectors for '+ticker+' across accounts.');companyMeta.set(instrument,{sector,name});
-   return {ticker,name,sector,account,assetType:type,marketValue:Number(amount),paise:Math.round(Number(amount)*100),costPaise:value.invested_value?amountPaise(value.invested_value,'Row '+(i+2)+': invested_value'):null};
+   return {ticker,name,sector,account,assetType:type,quantity,marketValue:Number(amount),paise:Math.round(Number(amount)*100),costPaise:value.invested_value?amountPaise(value.invested_value,'Row '+(i+2)+': invested_value'):null};
   });
  }
  function consolidate(rows,account='all'){
@@ -48,5 +50,12 @@ export default function createPortfolioTools(){
   for(const h of chosen){const label=dimension==='sector'?(h.sector||'Unclassified'):assetType(h),g=map.get(label)||{label,paise:0,holdings:[],costPaise:0,costComplete:true};g.paise+=cents(h);g.holdings.push(h);if(h.costComplete&&Number.isSafeInteger(h.costPaise))g.costPaise+=h.costPaise;else g.costComplete=false;map.set(label,g)}
   return {total,excludedValue:(holdings.reduce((s,h)=>s+cents(h),0)-Math.round(total*100))/100,groups:[...map.values()].map(g=>({...g,marketValue:g.paise/100,weight:total?g.paise/100/total*100:null,investedValue:g.costComplete?g.costPaise/100:null,pnl:g.costComplete?(g.paise-g.costPaise)/100:null,pnlPercent:g.costComplete&&g.costPaise>0?(g.paise/g.costPaise-1)*100:null})).sort((a,b)=>b.marketValue-a.marketValue)};
  }
- return {parseCSV,consolidate,groups,isListed,assetType};
+ function position(rows,ticker,{account='all',quote=null}={}){
+  const matches=rows.filter(r=>r.ticker===ticker&&isListed(r)&&(account==='all'||r.account===account));if(!matches.length)return null;
+  const snapshotPaise=matches.reduce((s,r)=>s+r.paise,0),costComplete=matches.every(r=>Number.isSafeInteger(r.costPaise)),costPaise=costComplete?matches.reduce((s,r)=>s+r.costPaise,0):null;
+  const quantityComplete=matches.every(r=>Number.isFinite(r.quantity)&&r.quantity>=0),quantity=quantityComplete?matches.reduce((s,r)=>s+r.quantity,0):null;
+  const estimate=Math.round(quantity*(quote?.price||0)*100),marked=quantity>0&&Number.isFinite(quote?.price)&&quote.price>0&&quote.currency==='INR'&&Number.isSafeInteger(estimate),valuePaise=marked?estimate:snapshotPaise;
+  return {ticker,accounts:[...new Set(matches.map(r=>r.account))],quantity,investedValue:costPaise===null?null:costPaise/100,averageCost:costPaise!==null&&quantity>0?costPaise/100/quantity:null,snapshotValue:snapshotPaise/100,currentValue:valuePaise/100,marked,stale:marked&&!!quote.stale,pnl:costPaise===null?null:(valuePaise-costPaise)/100,pnlPercent:costPaise>0?(valuePaise/costPaise-1)*100:null,dayChange:marked&&Number.isFinite(quote.change)?Math.round(quantity*quote.change*100)/100:null};
+ }
+ return {parseCSV,consolidate,groups,isListed,assetType,position};
 }

@@ -12,9 +12,9 @@ Neon's free PostgreSQL resource `finn-database` is connected to the production p
 
 The initial migration copied 41 alerts and two monitoring profiles from D1. Personal records are mapped to the authenticated Vercel owner. Event hashes are recomputed with that identity to preserve deduplication. Old scan runs, expiring locks, stale market snapshots and old hosting schedule metadata are not copied. Fresh scans regenerate snapshots. This database backs monitoring settings, inbox events, scan runs and delivery state. Holdings imports, notes, theses and imported PDF text continue to use browser storage; they are not automatically synchronized between the two domains. Import the original holdings CSV again on the new origin.
 
-## Private access and secrets
+## Public access and secrets
 
-The Vercel runtime fails closed until `FINN_ACCESS_PASSWORD` and `FINN_SESSION_SECRET` exist. Sign-in creates a Secure, HttpOnly, SameSite cookie valid for seven days. Incoming ChatGPT identity headers are discarded and replaced only after authentication. The generated access password is in the ignored local file `.local/vercel-access.txt`; keep it private. Rotate session and access secrets together to revoke existing sessions. This is an owner workspace, not a multi-user authentication system.
+`FINN_PUBLIC_ACCESS=true` opens the website without a password. Public visitors receive a random signed, Secure, HttpOnly anonymous workspace cookie. The backend discards incoming ChatGPT identity headers and assigns each visitor their own storage identity. New visitors do not fall back to shared or owner monitoring records. Existing signed owner sessions retain access to the owner's migrated alerts. The original access secret remains server-side for owner access and rollback; public visitors never need it. The scheduled scan endpoint still requires its separate bearer secret. Anonymous workspaces are browser identities, not recoverable accounts: clearing cookies creates a new workspace.
 
 Gemini credentials remain server-side. `FINN_PROVIDER=gemini` and `FINN_MODEL=gemini-3.1-flash-lite` configure the existing research and transcription adapters. Never place secrets in `vercel.json`, client code or Git. Gemini generation was verified before production configuration; provider capacity and quotas still apply.
 

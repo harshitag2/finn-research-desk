@@ -1,8 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {postgresDatabase,postgresStatement} from '../deploy/postgres.js';
-import {sessionCookie,authenticated,authorize} from '../deploy/vercel-auth.js';
+import {sessionCookie,authenticated,authorize,visitorIdentity} from '../deploy/vercel-auth.js';
+import {localDatabase} from '../scripts/local-db.mjs';
+import {createMonitorStore} from '../src/monitor.js';
+import {handleWorkbench} from '../src/workbench-api.js';
 const env={FINN_ACCESS_PASSWORD:'a-long-test-only-password',FINN_SESSION_SECRET:'test-only-session-secret-at-least-32-characters'};
+test('public access opens the website without assigning visitors the private owner identity',async()=>{
+ const publicEnv={...env,FINN_PUBLIC_ACCESS:'true'};
+ const request=new Request('https://finn.test/');
+ assert.equal(await authorize(request,publicEnv),null);
+ const first=visitorIdentity(request,publicEnv),other=visitorIdentity(request,publicEnv);
+ assert.notEqual(first.owner,other.owner);assert.match(first.owner,/^visitor:/);
+ const cookie=first.cookie.split(';')[0];
+ assert.equal(visitorIdentity(new Request('https://finn.test/',{headers:{cookie}}),publicEnv).owner,first.owner);
+ assert.equal(authenticated(new Request('https://finn.test/',{headers:{cookie:cookie.replace('__Host-finn-visitor','__Host-finn-session')}}),publicEnv),false);
+ assert.notEqual(visitorIdentity(new Request('https://finn.test/',{headers:{cookie}}),publicEnv,Date.now()+31*86400000).owner,first.owner);
+});
+test('a new public visitor never receives private or shared monitoring records',async()=>{
+ const DB=await localDatabase(':memory:');
+ try{
+  const store=createMonitorStore(DB);
+  await store.saveConfig('shared',{tickers:['INFY'],enabled:true});
+  await store.insert('shared',{key:'private',ticker:'INFY',kind:'price',title:'Private record',priority:1});
+  await store.saveConfig('vercel-owner',{tickers:['TCS'],enabled:true});
+  await store.insert('vercel-owner',{key:'owner-private',ticker:'TCS',kind:'price',title:'Owner record',priority:1});
+  const request=new Request('https://finn.test/api/monitor/inbox',{headers:{'oai-authenticated-user-id':'visitor:one'}});
+  const response=await handleWorkbench(request,{DB,FINN_ISOLATE_VISITOR:true},{corpus:{},portfolio:[]});
+  const data=await response.json();assert.deepEqual(data.events,[]);assert.equal(data.config,null);assert.equal(data.scope,'personal');
+ }finally{DB.close()}
+});
 test('Postgres translation preserves quoted question marks and binds all actual parameters',()=>{
  assert.equal(postgresStatement("SELECT '?' AS literal, 'it''s ?' AS escaped FROM t WHERE a=? AND b=?"),"SELECT '?' AS literal, 'it''s ?' AS escaped FROM t WHERE a=$1 AND b=$2");
  assert.equal(postgresStatement('INSERT OR IGNORE INTO t (a,b) VALUES (?,?)'),'INSERT INTO t (a,b) VALUES ($1,$2) ON CONFLICT DO NOTHING');

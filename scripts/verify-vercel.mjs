@@ -1,8 +1,8 @@
 import {readFile} from 'node:fs/promises';
 const base=process.argv[2];if(!base||!new URL(base).hostname.endsWith('.vercel.app'))throw new Error('Pass the deployed Vercel URL');
 const secrets=JSON.parse(await readFile('.local/vercel-secrets.json','utf8'));
-let response=await fetch(base+'/api/library');if(response.status!==401)throw new Error('Private API protection failed: '+response.status);
-console.log('Unauthenticated API access blocked.');
+let response=await fetch(base+'/api/library');if(![200,401].includes(response.status))throw new Error('Access check failed: '+response.status);
+console.log(response.status===200?'Public browsing available without a password.':'Unauthenticated API access blocked.');
 response=await fetch(base+'/auth/login',{method:'POST',headers:{origin:base,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({password:secrets.FINN_ACCESS_PASSWORD}),redirect:'manual'});
 if(response.status!==303)throw new Error('Sign-in failed: '+response.status);
 const cookie=response.headers.get('set-cookie').split(';')[0];

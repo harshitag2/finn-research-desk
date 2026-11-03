@@ -14,12 +14,26 @@ export function authenticated(request,env,now=Date.now()){
  if(!value||!signature||extra.length||!same(signature,sign(value,env.FINN_SESSION_SECRET)))return false;
  try{return JSON.parse(Buffer.from(value,'base64url')).exp>now}catch{return false}
 }
+// Public browsing uses an anonymous signed identity, never the owner's identity.
+export function visitorIdentity(request,env,now=Date.now()){
+ const name='__Host-finn-visitor';
+ const raw=(request.headers.get('cookie')||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1);
+ if(raw){const [value,signature,...extra]=raw.split('.');
+  if(value&&signature&&!extra.length&&same(signature,sign('visitor:'+value,env.FINN_SESSION_SECRET))){
+   try{const data=JSON.parse(Buffer.from(value,'base64url'));if(data.exp>now&&/^[a-f0-9]{32}$/.test(data.id))return {owner:'visitor:'+data.id,cookie:null}}catch{}
+  }
+ }
+ const id=randomBytes(16).toString('hex');
+ const value=Buffer.from(JSON.stringify({id,exp:now+30*86400000})).toString('base64url');
+ return {owner:'visitor:'+id,cookie:name+'='+value+'.'+sign('visitor:'+value,env.FINN_SESSION_SECRET)+'; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000'};
+}
 const headers={'content-type':'text/html; charset=utf-8','cache-control':'no-store','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",'x-content-type-options':'nosniff'};
 function loginPage(error=''){
  return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · FINN</title><style>*{box-sizing:border-box}body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#f5f7fa;color:#18212b;font:16px system-ui}main{margin:24px;padding:32px;width:min(400px,calc(100% - 48px));background:white;border:1px solid #e0e5eb;border-radius:16px}h1{margin:0 0 12px}p{color:#657185;line-height:1.6}input,button{width:100%;padding:14px;border-radius:8px;font:inherit;margin-top:12px}input{border:1px solid #d5dce5}button{border:0;background:#1d5bda;color:white;cursor:pointer}.error{color:#ad2020}</style><main><h1>FINN</h1><p>Your private research desk.</p>${error?'<p class="error">'+error+'</p>':''}<form action="/auth/login" method="post"><label for="password">Access password</label><input id="password" type="password" name="password" autocomplete="current-password" required maxlength="256"><button>Sign in</button></form></main></html>`,{status:error?401:200,headers});
 }
 export async function authorize(request,env){
  const url=new URL(request.url);
+ if(env.FINN_PUBLIC_ACCESS==='true'&&url.pathname!=='/auth/login')return null;
  if(!env.FINN_SESSION_SECRET||!env.FINN_ACCESS_PASSWORD)return new Response('Private workspace setup is incomplete.',{status:503,headers:{'cache-control':'no-store'}});
  if(url.pathname==='/auth/login'&&request.method==='POST'){
   if(request.headers.get('origin')!==url.origin)return new Response('Use the FINN sign-in page.',{status:403});

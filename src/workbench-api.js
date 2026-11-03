@@ -51,7 +51,7 @@ export async function handleWorkbench(request,env,{corpus,combine,portfolio}){
    if(path==='/api/monitor/whatsapp'&&request.method==='POST'){if(who==='shared')return json({error:'Sign in first.'},403);await saveNotificationSettings(delivery,who,await body(request,5000));return json({saved:true,...await notificationStatus(delivery,who,env)})}
    if(path==='/api/monitor/whatsapp/test'&&request.method==='POST'){if(who==='shared')return json({error:'Sign in first.'},403);await body(request,1000);return json(await dispatchWhatsApp({store:delivery,owner:who,events:[],env,test:true}))}
    if(path==='/api/monitor/inbox'&&request.method==='GET'){
-    const own=await store.config(who);return json({...await readInbox(store,own?who:'shared'),scope:own?'personal':'default',delivery:who==='shared'?null:await notificationStatus(delivery,who,env)});
+    const own=await store.config(who),isolated=env.FINN_ISOLATE_VISITOR===true;return json({...await readInbox(store,own||isolated?who:'shared'),scope:own||isolated?'personal':'default',delivery:who==='shared'?null:await notificationStatus(delivery,who,env)});
    }
    if(path==='/api/monitor/schedule'&&request.method==='POST'){
     if(request.headers.has('oai-authenticated-user-id'))return json({error:'Schedule metadata is managed by the cloud setup.'},403);

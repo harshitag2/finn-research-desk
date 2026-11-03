@@ -1,7 +1,7 @@
 import worker from '../dist/server/vercel-worker.mjs';
 import {neon} from '@neondatabase/serverless';
 import {postgresDatabase} from '../deploy/postgres.js';
-import {authorize} from '../deploy/vercel-auth.js';
+import {authorize,authenticated,visitorIdentity} from '../deploy/vercel-auth.js';
 import {timingSafeEqual} from 'node:crypto';
 
 let database;
@@ -24,14 +24,17 @@ export default {async fetch(request){
  const gate=await authorize(request,process.env);if(gate)return gate;
  try{
   const env=runtime();
+  const identity=authenticated(request,env)?{owner:'vercel-owner',cookie:null}:visitorIdentity(request,env);
+  env.FINN_ISOLATE_VISITOR=true;
   if(url.pathname==='/api/health'){
    await env.DB.prepare('SELECT 1 AS connected').bind().first();
    return Response.json({status:'ok',backend:'vercel-node',database:'postgres',modelConfigured:!!(env.GEMINI_API_KEY||env.GOOGLE_API_KEY||env.FINN_API_KEY)},{headers:{'cache-control':'no-store'}});
   }
   // Identity is set here after session verification. Never trust a caller's OAI header.
-  const headers=new Headers(request.headers);headers.delete('oai-authenticated-user-id');headers.set('oai-authenticated-user-id','vercel-owner');
+  const headers=new Headers(request.headers);headers.delete('oai-authenticated-user-id');headers.set('oai-authenticated-user-id',identity.owner);
   const response=await worker.fetch(new Request(request,{headers}),env,{});
   const out=new Headers(response.headers);out.set('cache-control','private, no-store');out.set('x-frame-options','DENY');
+  if(identity.cookie)out.append('set-cookie',identity.cookie);
   return new Response(response.body,{status:response.status,headers:out});
  }catch(error){console.error('FINN runtime failure:',error?.name||'Error');return Response.json({error:'Backend or database connection unavailable. Check server configuration.'},{status:503,headers:{'cache-control':'no-store'}})}
 }};

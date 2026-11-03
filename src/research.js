@@ -64,7 +64,8 @@ export function validateFindings(findings,evidence,maxFindings=7){
  return (Array.isArray(findings)?findings:[]).filter(f=>typeof f.text==='string'&&f.text.trim()&&Array.isArray(f.evidenceIds)&&f.evidenceIds.length&&f.evidenceIds.every(id=>valid.has(id))).slice(0,maxFindings).map(f=>({text:f.text.slice(0,2200),...(['business','growth','profitability','capital','outlook'].includes(f.section)?{section:f.section}:{}),evidenceIds:[...new Set(f.evidenceIds)],...(['supports','challenges','unclear'].includes(f.stance)?{stance:f.stance}:{})}));
 }
 export function evidenceFallback(query,evidence,trace,reason='No model provider connected.'){
- return {mode:'evidence',query,summary:evidence.length?'Relevant passages from company disclosures. Connect a model for a synthesized answer.':'No matching evidence found in the available documents.',findings:[],evidence,trace,gaps:[reason,...(!evidence.length?['Add a relevant annual report or transcript, or broaden your question.']:[])],generatedAt:new Date().toISOString()};
+ const synthesisFailed=trace.some(step=>step.tool==='provider_error');
+ return {mode:'evidence',query,summary:evidence.length?(synthesisFailed?'Model synthesis is unavailable. Retrieved source passages are shown below.':'Relevant passages from company disclosures. Connect a model for a synthesized answer.'):'No matching evidence found in the available documents.',findings:[],evidence,trace,gaps:[reason,...(!evidence.length?['Add a relevant annual report or transcript, or broaden your question.']:[])],generatedAt:new Date().toISOString()};
 }
 export async function runResearch(options){
  const scoped=scopeResearchSources(options.corpus,{query:options.query,ticker:options.ticker});

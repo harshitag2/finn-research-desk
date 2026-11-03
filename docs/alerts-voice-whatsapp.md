@@ -8,7 +8,11 @@ Commands include “Show weekly urgent alerts”, “Show monthly regular update
 
 ## Voice
 
-The command bar microphone opens an explicit recording/review flow. Gemini audio handles Hindi, English and Hinglish, returning the actual transcript plus an equivalent command. Silence or uncertain speech yields no executable command. Users edit and explicitly run the command. Recording stops after 45 seconds; files are limited to 5 MB. Raw clips are not stored by FINN. Browser speech recognition is an optional English fallback when supported. A short spoken acknowledgement is optional. Microphone permission, ambient noise and browser support affect capture; no always-on listening is implemented.
+The command-bar mic starts recording immediately after the browser grants microphone permission. The input field becomes an inline waveform, elapsed timer, cancel button and finish button. Waveform heights come from the actual microphone samples via Web Audio. Finish sends the clip for transcription and fills the normal prompt field with the recognised command; Search executes it. There is no separate voice form, file chooser or mode picker. Cancel restores the previous draft, stops audio tracks and discards the recording. Navigation, backgrounding and Escape cancel capture. Delayed permission results are discarded after cancellation.
+
+Gemini handles Hindi, English and Hinglish, returning the transcript plus an equivalent command. Unclear speech leaves the draft unchanged. Browser speech recognition is an automatic English fallback where supported when Gemini is unavailable. Recording stops after 45 seconds; clips are limited to 5 MB. FINN does not store raw recordings. No command runs automatically. Browser permission and a working microphone are required.
+
+The one-tap UI is tested with a synthetic MediaStream on an isolated origin, never the user's physical microphone. Tests cover immediate capture, audio-responsive bars, finishing into the prompt without execution, cancellation/draft restoration, denial and narrow layouts. The Gemini transcription endpoint was also verified with a generated spoken English WAV during the original voice release.
 
 Gemini reuses the existing server-side key/model; optional `FINN_VOICE_MODEL` can select another audio-capable model. Sources: [Google audio input guide](https://ai.google.dev/gemini-api/docs/generate-content/audio).
 

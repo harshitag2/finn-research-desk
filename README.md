@@ -1,5 +1,7 @@
 # FINN — The research desk
 
+Vercel deployment and backend/database setup: [deployment guide](docs/vercel-deployment.md). Production: https://finn-research-desk.vercel.app (private access).
+
 Current integrated version: **0.12.1**. Adds a general management commitments ledger, annual cash and capital checks, a thesis-aware persistent change inbox, verified document discovery/import for unfamiliar issuers, management-background enrichment, and an hourly linked cloud scan. Research retains source and period boundaries; ambiguous financial values are withheld. See [release notes](docs/release-0.12.0.md), [evaluation](docs/evaluation.md), and [submission draft](docs/submission-note.md).
 
 An investment workspace controlled from one natural-language command bar. A compact responsive workspace combines source-linked research, management commitments, cash checks, portfolio views and a persistent change inbox.

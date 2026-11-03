@@ -1,0 +1,25 @@
+name: FINN hourly monitoring
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: finn-production-monitor
+  cancel-in-progress: false
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Run authenticated production scan
+        env:
+          FINN_MONITOR_URL: ${{ secrets.FINN_MONITOR_URL }}
+          FINN_MONITOR_TOKEN: ${{ secrets.FINN_MONITOR_TOKEN }}
+        run: |
+          test -n "$FINN_MONITOR_URL" && test -n "$FINN_MONITOR_TOKEN"
+          curl --fail-with-body --silent --show-error --max-time 290 \
+            -X POST "$FINN_MONITOR_URL/api/cron" \
+            -H "Authorization: Bearer $FINN_MONITOR_TOKEN" \
+            -H 'Content-Type: application/json' --data '{}'

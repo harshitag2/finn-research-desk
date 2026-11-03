@@ -1,9 +1,9 @@
 import {modelConfig} from './model-config.js';
 export const AUDIO_TYPES=['audio/webm','audio/wav','audio/x-wav','audio/ogg','audio/mpeg','audio/mp3','audio/mp4','audio/m4a','audio/aac'];
-export function voiceStatus(env={}){const c=modelConfig(env);return {configured:c.provider==='gemini'&&c.configured,model:env.FINN_VOICE_MODEL||c.model,maxBytes:5000000,maxSeconds:45,languages:['Hindi','English','Hinglish']}}
+export function voiceStatus(env={}){const c=modelConfig(env);return {configured:c.provider==='gemini'&&c.configured,model:env.FINN_VOICE_MODEL||c.model,maxBytes:env.FINN_RUNTIME==='vercel'?4000000:5000000,maxSeconds:45,languages:['Hindi','English','Hinglish']}}
 export async function transcribeVoice({bytes,mimeType,env={},fetcher=fetch,companies=[]}){
  const status=voiceStatus(env),c=modelConfig(env);if(!status.configured)throw new Error('Gemini audio transcription is not configured. Use browser speech recognition or type the command.');
- const type=String(mimeType).split(';')[0].toLowerCase();if(!AUDIO_TYPES.includes(type)||!bytes?.length||bytes.length>status.maxBytes)throw new Error('Use a supported audio clip smaller than 5 MB (up to 45 seconds).');
+ const type=String(mimeType).split(';')[0].toLowerCase();if(!AUDIO_TYPES.includes(type)||!bytes?.length||bytes.length>status.maxBytes)throw new Error('Use a supported audio clip smaller than '+status.maxBytes/1000000+' MB (up to 45 seconds).');
  let binary='';for(let i=0;i<bytes.length;i+=16384)binary+=String.fromCharCode(...bytes.slice(i,i+16384));
  const schema={type:'object',properties:{transcript:{type:'string'},command:{type:'string'},language:{type:'string'},unclear:{type:'boolean'}},required:['transcript','command','language','unclear']};
  const names=companies.slice(0,50).filter(x=>/^[A-Z0-9&-]{1,24}$/.test(x.ticker||'')).map(x=>({ticker:x.ticker,name:String(x.name||'').slice(0,100)}));

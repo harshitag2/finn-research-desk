@@ -1,0 +1,12 @@
+.git
+.env*
+.local
+.openai
+.sites-workflow
+node_modules
+dist
+output
+tests
+test-results
+data/raw
+*.tar.gz

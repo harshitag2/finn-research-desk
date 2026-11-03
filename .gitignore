@@ -9,3 +9,6 @@ data/raw/
 test-results/
 
 .local/
+.vercel/
+.vercel
+.env*

@@ -98,7 +98,7 @@ export default {async fetch(request,env={}){
   if(request.method==='GET'&&path==='/app.js')return new Response('('+boot.toString()+')(('+createPortfolioTools.toString()+')(),('+createIntentTools.toString()+')(),('+createChartTools.toString()+')(),('+createTerminalTools.toString()+')(),('+createWorkspaceActions.toString()+')(),('+createWorkbenchUI.toString()+')());',{headers:{'Content-Type':'application/javascript; charset=utf-8'}});
   if(request.method==='GET'&&path==='/api/diligence')return json({lenses:LENSES,method:'A product interpretation of ENAM’s public investment approach, not its internal research system.',sources:[{title:'ENAM investment philosophy',url:'https://www.enam.com/investment-philosophy.html'},{title:'ENAM approach and governance',url:'https://www.enam.com/about-us.html'},{title:'ENAM culture and objectivity',url:'https://www.enam.com/culture.html'}]});
   if(request.method==='GET'&&path==='/manifest.webmanifest')return new Response(JSON.stringify({id:'/',name:'FINN Research Desk',short_name:'FINN',description:'Indian equity research and company disclosures',start_url:'/#briefing',scope:'/',display:'standalone',background_color:'#f5f7fa',theme_color:'#ffffff',icons:[{src:'/favicon.svg',sizes:'any',type:'image/svg+xml',purpose:'any'}]}),{headers:{'Content-Type':'application/manifest+json','Cache-Control':'no-cache'}});
-  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.12.1',digest:{categories:CATEGORY_LABELS,defaultFocus:DEFAULT_FOCUS,windows:Object.keys(WINDOWS)}})}
+  if(request.method==='GET'&&path==='/api/library'){const config=modelConfig(env);return json({documents:corpus.documents,chunkCount:corpus.chunks.length,portfolio:PORTFOLIO,providerConfigured:config.configured,provider:config.provider,model:config.model,version:'0.12.1',uploadMaxBytes:env.FINN_RUNTIME==='vercel'?4000000:15000000,digest:{categories:CATEGORY_LABELS,defaultFocus:DEFAULT_FOCUS,windows:Object.keys(WINDOWS)}})}
   if(request.method==='POST'&&path==='/api/command'){
    const body=await readJSON(request,12000),prompt=String(body.prompt||'').trim();
    if(prompt.length<3||prompt.length>1200)return json({error:'Enter a workspace request of 3–1,200 characters.'},400);
@@ -191,10 +191,11 @@ export default {async fetch(request,env={}){
    return json({document,chunks:corpus.chunks.filter(c=>c.documentId===id),note:'Indexed passages retain physical PDF page numbers. Passages may overlap and are not a full-layout PDF transcription.'});
   }
   if(request.method==='POST'&&path==='/api/ingest'){
-   if(Number(request.headers.get('content-length'))>16000000)return json({error:'PDF must be smaller than 15 MB.'},413);
+   const maxPdf=env.FINN_RUNTIME==='vercel'?4000000:15000000;
+   if(Number(request.headers.get('content-length'))>maxPdf+100000)return json({error:'PDF must be smaller than '+maxPdf/1000000+' MB.'},413);
    const form=await request.formData(),file=form.get('file'),ticker=cleanTicker(form.get('ticker'));
    if(!validTicker(ticker)||!file||typeof file.arrayBuffer!=='function')return json({error:'Choose a PDF and enter an NSE ticker.'},400);
-   if(file.size>15000000)return json({error:'PDF must be smaller than 15 MB.'},413);
+   if(file.size>maxPdf)return json({error:'PDF must be smaller than '+maxPdf/1000000+' MB.'},413);
    const bytes=new Uint8Array(await file.arrayBuffer());if(new TextDecoder().decode(bytes.slice(0,5))!=='%PDF-')return json({error:'The file is not a PDF.'},400);
    const sha256=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
    const pdf=await getDocumentProxy(bytes);if(pdf.numPages>350){await pdf.loadingTask.destroy();return json({error:'For this prototype, import reports of up to 350 pages.'},413)}

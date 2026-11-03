@@ -1,12 +1,12 @@
 // Integration settings and submission ledger use the existing durable monitor key/value table.
 const enc=new TextEncoder();
 export async function hash(value){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode(value)))].map(x=>x.toString(16).padStart(2,'0')).join('')}
-export function whatsappProvider(env={}){const required=['WHATSAPP_ACCESS_TOKEN','WHATSAPP_PHONE_NUMBER_ID','WHATSAPP_TEMPLATE_NAME','WHATSAPP_GRAPH_VERSION'];const missing=required.filter(k=>!env[k]);return {configured:!missing.length&&/^v\d+\.\d+$/.test(env.WHATSAPP_GRAPH_VERSION||'')&&/^\d+$/.test(env.WHATSAPP_PHONE_NUMBER_ID||''),missing,webhookConfigured:!!env.WHATSAPP_APP_SECRET&&!!env.WHATSAPP_VERIFY_TOKEN}}
+export function whatsappProvider(env={}){const required=['WHATSAPP_ACCESS_TOKEN','WHATSAPP_PHONE_NUMBER_ID','WHATSAPP_TEMPLATE_NAME','WHATSAPP_GRAPH_VERSION'];const missing=required.filter(k=>!env[k]),configured=!missing.length&&/^v\d+\.\d+$/.test(env.WHATSAPP_GRAPH_VERSION||'')&&/^\d+$/.test(env.WHATSAPP_PHONE_NUMBER_ID||'');return {configured,missing,templateReady:configured&&env.WHATSAPP_TEMPLATE_NAME!=='hello_world',webhookConfigured:!!env.WHATSAPP_APP_SECRET&&!!env.WHATSAPP_VERIFY_TOKEN}}
 export function notificationStore(db){
  return {get:async key=>{const r=await db.prepare('SELECT value FROM finn_monitor_meta WHERE key = ?').bind(key).first();if(!r)return null;try{return JSON.parse(r.value)}catch{return null}},put:(key,value)=>db.prepare('INSERT INTO finn_monitor_meta (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(key,JSON.stringify(value)).run(),claim:async(key,value)=>Number((await db.prepare('INSERT OR IGNORE INTO finn_monitor_meta (key,value) VALUES (?,?)').bind(key,JSON.stringify(value)).run()).meta?.changes||0)>0,remove:key=>db.prepare('DELETE FROM finn_monitor_meta WHERE key = ?').bind(key).run()};
 }
 const subscriptionKey=owner=>'wa:subscription:'+owner;
-export async function notificationStatus(store,owner,env={}){const s=await store.get(subscriptionKey(owner)),provider=whatsappProvider(env);return {provider,subscription:s?{enabled:!!s.enabled,recipientMasked:'+'+s.phone.slice(1,3)+'••••••'+s.phone.slice(-4),digestCadence:s.digestCadence,urgentOnly:!!s.urgentOnly,consentAt:s.consentAt}:null,state:!provider.configured?'not_connected':s?.enabled?'ready':'paused',lastDelivery:await store.get('wa:last:'+owner)}}
+export async function notificationStatus(store,owner,env={}){const s=await store.get(subscriptionKey(owner)),provider=whatsappProvider(env);return {provider,subscription:s?{enabled:!!s.enabled,recipientMasked:'+'+s.phone.slice(1,3)+'••••••'+s.phone.slice(-4),digestCadence:s.digestCadence,urgentOnly:!!s.urgentOnly,consentAt:s.consentAt}:null,state:!provider.configured?'not_connected':!provider.templateReady?'test_only':!provider.webhookConfigured?'webhook_required':s?.enabled?'ready':'paused',lastDelivery:await store.get('wa:last:'+owner)}}
 export async function saveNotificationSettings(store,owner,input,now=Date.now()){
  const previous=await store.get(subscriptionKey(owner)),phone=String(input.phone||previous?.phone||'').replace(/[\s()-]/g,'');if(!/^\+[1-9]\d{7,14}$/.test(phone))throw new Error('Enter your WhatsApp number with country code, for example +91 followed by the mobile number.');
  if(!['hourly','daily','weekly'].includes(input.digestCadence))throw new Error('Choose hourly, daily or weekly updates.');
@@ -17,12 +17,14 @@ export async function saveNotificationSettings(store,owner,input,now=Date.now())
 }
 export function digestSlot(cadence,now){const d=new Date(now+19800000),iso=d.toISOString(),hour=d.getUTCHours();if(cadence==='hourly')return iso.slice(0,13);if(hour<18)return null;if(cadence==='weekly'&&d.getUTCDay()!==5)return null;return iso.slice(0,10)}
 export function eventText(e){return (e.urgency==='urgent'?'URGENT REVIEW':'REVIEW')+' · '+e.ticker+' · '+(e.horizon||'Filing')+'\n'+String(e.title||e.text||'').slice(0,350)+'\nSource date: '+(e.at||e.firstSeenAt||'unavailable')+(e.urgencyReason?'\n'+e.urgencyReason:'')}
-async function submit(store,owner,key,text,s,env,fetcher,now){
+async function submit(store,owner,key,text,s,env,fetcher,now,{test=false}={}){
  const jobKey='wa:job:'+await hash(owner+'|'+key),base={key,at:new Date(now).toISOString(),status:'submitting'};
  if(!await store.claim(jobKey,base))return {status:'duplicate'};
  let result;
  try{
-  const r=await fetcher('https://graph.facebook.com/'+env.WHATSAPP_GRAPH_VERSION+'/'+env.WHATSAPP_PHONE_NUMBER_ID+'/messages',{method:'POST',headers:{'authorization':'Bearer '+env.WHATSAPP_ACCESS_TOKEN,'content-type':'application/json'},signal:AbortSignal.timeout(15000),body:JSON.stringify({messaging_product:'whatsapp',to:s.phone.slice(1),type:'template',template:{name:env.WHATSAPP_TEMPLATE_NAME,language:{code:env.WHATSAPP_TEMPLATE_LANGUAGE||'en'},components:[{type:'body',parameters:[{type:'text',text:String(text).replace(/[\r\n\t]+/g,' · ').slice(0,900)}]}]}})});
+  const hello=test&&env.WHATSAPP_TEMPLATE_NAME==='hello_world';
+  const template={name:env.WHATSAPP_TEMPLATE_NAME,language:{code:env.WHATSAPP_TEMPLATE_LANGUAGE||(hello?'en_US':'en')},...(!hello?{components:[{type:'body',parameters:[{type:'text',text:String(text).replace(/[\r\n\t]+/g,' · ').slice(0,900)}]}]}:{})};
+  const r=await fetcher('https://graph.facebook.com/'+env.WHATSAPP_GRAPH_VERSION+'/'+env.WHATSAPP_PHONE_NUMBER_ID+'/messages',{method:'POST',headers:{'authorization':'Bearer '+env.WHATSAPP_ACCESS_TOKEN,'content-type':'application/json'},signal:AbortSignal.timeout(15000),body:JSON.stringify({messaging_product:'whatsapp',to:s.phone.slice(1),type:'template',template})});
   const b=await r.json().catch(()=>({})),id=b.messages?.[0]?.id;
   result=r.ok&&typeof id==='string'?{...base,status:'accepted',messageId:id}:{...base,status:'failed',error:'WhatsApp rejected submission (HTTP '+r.status+'). Check the approved template, sender and recipient access.'};
   if(result.messageId)await store.put('wa:message:'+result.messageId,{owner,jobKey});
@@ -30,8 +32,10 @@ async function submit(store,owner,key,text,s,env,fetcher,now){
  await store.put(jobKey,result);await store.put('wa:last:'+owner,result);return result;
 }
 export async function dispatchWhatsApp({store,owner,events,marketSummary=null,env={},now=Date.now(),fetcher=fetch,test=false}){
- const s=await store.get(subscriptionKey(owner));if(!whatsappProvider(env).configured)return {status:'not_connected',sent:0};if(!s?.enabled||!s.consentAt)return {status:'paused',sent:0};
- if(test)return submit(store,owner,'test|'+crypto.randomUUID(),'FINN connection test. Your WhatsApp alert setup can submit messages. Open FINN to review your settings.',s,env,fetcher,now);
+ const s=await store.get(subscriptionKey(owner)),provider=whatsappProvider(env);if(!provider.configured)return {status:'not_connected',sent:0};if(!s?.enabled||!s.consentAt)return {status:'paused',sent:0};
+ if(!test&&!provider.templateReady)return {status:'template_required',sent:0};
+ if(!test&&!provider.webhookConfigured)return {status:'webhook_required',sent:0};
+ if(test)return submit(store,owner,'test|'+crypto.randomUUID(),'FINN connection test. Your WhatsApp alert setup can submit messages. Open FINN to review your settings.',s,env,fetcher,now,{test:true});
  const eligible=events.filter(e=>e.state!=='dismissed'&&e.state!=='reviewed'&&Date.parse(e.firstSeenAt||0)>=Date.parse(s.subscribedAt));let sent=0;
  // One stable key per event. Provider timeouts are not retried automatically.
  let attempted=0;for(const e of eligible.filter(e=>e.urgency==='urgent')){const r=await submit(store,owner,'urgent|'+e.id,eventText(e),s,env,fetcher,now);if(r.status!=='duplicate')attempted++;if(r.status==='accepted')sent++;if(attempted>=3)break}

@@ -12,6 +12,11 @@ function runtime(){
 }
 export default {async fetch(request){
  const url=new URL(request.url);
+ // Meta callbacks use their verification token/HMAC, not a visitor login cookie.
+ if(url.pathname==='/api/whatsapp/webhook'){
+  try{return await worker.fetch(request,runtime(),{})}
+  catch{return new Response('Webhook unavailable',{status:503,headers:{'cache-control':'no-store'}})}
+ }
  if(url.pathname==='/api/cron'){
   const expected=process.env.CRON_SECRET?'Bearer '+process.env.CRON_SECRET:'';
   const actual=request.headers.get('authorization')||'';

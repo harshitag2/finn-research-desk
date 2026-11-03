@@ -48,7 +48,14 @@ export async function handleWorkbench(request,env,{corpus,combine,portfolio}){
    const store=createMonitorStore(env.DB),who=owner(request,url);
    const delivery=notificationStore(env.DB);
    if(path==='/api/monitor/whatsapp'&&request.method==='GET'){if(who==='shared')return json({error:'Sign in to configure personal WhatsApp updates.'},403);return json(await notificationStatus(delivery,who,env))}
-   if(path==='/api/monitor/whatsapp'&&request.method==='POST'){if(who==='shared')return json({error:'Sign in first.'},403);await saveNotificationSettings(delivery,who,await body(request,5000));return json({saved:true,...await notificationStatus(delivery,who,env)})}
+   if(path==='/api/monitor/whatsapp'&&request.method==='POST'){
+    if(who==='shared')return json({error:'Sign in first.'},403);
+    const input=await body(request,80000),previous=await store.config(who);
+    const monitor=input.enabled===true?validateMonitorConfig({...((input.monitorConfig)||(previous?JSON.parse(previous.config_json):{tickers:portfolio.map(c=>c.ticker)})),enabled:true}):null;
+    await saveNotificationSettings(delivery,who,input);
+    if(monitor)await store.saveConfig(who,monitor);
+    return json({saved:true,monitoringEnabled:!!monitor||!!(previous&&JSON.parse(previous.config_json).enabled),...await notificationStatus(delivery,who,env)});
+   }
    if(path==='/api/monitor/whatsapp/test'&&request.method==='POST'){if(who==='shared')return json({error:'Sign in first.'},403);await body(request,1000);return json(await dispatchWhatsApp({store:delivery,owner:who,events:[],env,test:true}))}
    if(path==='/api/monitor/inbox'&&request.method==='GET'){
     const own=await store.config(who),isolated=env.FINN_ISOLATE_VISITOR===true;return json({...await readInbox(store,own||isolated?who:'shared'),scope:own||isolated?'personal':'default',delivery:who==='shared'?null:await notificationStatus(delivery,who,env)});

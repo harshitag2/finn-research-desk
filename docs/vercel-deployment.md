@@ -2,6 +2,8 @@
 
 Production: https://finn-research-desk.vercel.app
 
+Verification on 3 November 2026: 224 automated tests passed. Production checks verified unauthorized API blocking, private sign-in, PostgreSQL reads and a persistent configuration write/read, quotes, and extraction of a 24-page company PDF into 46 passages.
+
 The Vercel project `finn-research-desk` runs the existing application through a Node.js Function in `api/index.js`. The frontend and API share an origin. The previous Cloudflare/Sites deployment is retained separately.
 
 ## Backend and database
